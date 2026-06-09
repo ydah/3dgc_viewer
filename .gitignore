@@ -1,0 +1,11 @@
+.bundle/
+.yardoc/
+coverage/
+pkg/
+tmp/
+
+ext/3dgc_viewer_native/Makefile
+ext/3dgc_viewer_native/mkmf.log
+ext/3dgc_viewer_native/*.o
+ext/3dgc_viewer_native/*.bundle
+ext/3dgc_viewer_native/*.dSYM/

@@ -1,0 +1,19 @@
+# frozen_string_literal: true
+
+require_relative "3dgc_viewer/version"
+require_relative "3dgc_viewer/errors"
+require_relative "3dgc_viewer/binary_pack"
+require_relative "3dgc_viewer/scene"
+require_relative "3dgc_viewer/math3d"
+require_relative "3dgc_viewer/window/keymap"
+require_relative "3dgc_viewer/camera"
+require_relative "3dgc_viewer/scene_uniform"
+require_relative "3dgc_viewer/gaussian"
+require_relative "3dgc_viewer/ply_loader"
+require_relative "3dgc_viewer/gaussian_resources"
+require_relative "3dgc_viewer/library_locator"
+require_relative "3dgc_viewer/shader_loader"
+require_relative "3dgc_viewer/passes"
+require_relative "3dgc_viewer/app"
+
+WgpuGsViewer = ThreeDgcViewer unless defined?(WgpuGsViewer)
