@@ -21,4 +21,20 @@ RSpec.describe ThreeDgcViewer::ShaderLoader do
         .to raise_error(ThreeDgcViewer::ShaderError, /escapes shader directory/)
     end
   end
+
+  it "reports the shader name when module creation fails" do
+    device = Class.new do
+      def create_shader_module(label:, code:)
+        raise "compile failed"
+      end
+    end.new
+
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "bad.wgsl"), "shader source")
+      loader = described_class.new(device, shader_dir: dir)
+
+      expect { loader.module("bad.wgsl") }
+        .to raise_error(ThreeDgcViewer::ShaderError, /bad\.wgsl: compile failed/)
+    end
+  end
 end

@@ -29,6 +29,10 @@ module ThreeDgcViewer
       end
 
       raise ShaderError, "device does not support WGSL shader module creation"
+    rescue ShaderError
+      raise
+    rescue StandardError => e
+      raise ShaderError, "failed to create shader module #{name}: #{e.message}"
     end
 
     private
