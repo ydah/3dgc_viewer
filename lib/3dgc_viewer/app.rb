@@ -59,7 +59,7 @@ module ThreeDgcViewer
       :hidden, :smoke_frame, :smoke_resize,
       :smoke_camera, :assert_render_nonzero,
       :print_render_stats, :screenshot, :benchmark, :frame_sequence, :frame_sequence_count, :frame_sequence_step,
-      :max_gaussians,
+      :max_gaussians, :max_file_bytes,
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :time_range, :pause, :turntable_speed, :power_preference, :present_mode,
       :background_color, :exposure, :gamma, :brightness, :contrast,
@@ -114,6 +114,7 @@ module ThreeDgcViewer
         frame_sequence_count: 1,
         frame_sequence_step: nil,
         max_gaussians: PlyLoader::MAX_VERTEX_COUNT,
+        max_file_bytes: nil,
         eye: nil,
         target: nil,
         up: nil,
@@ -213,6 +214,7 @@ module ThreeDgcViewer
         opts.on("--frame-sequence-count N", Integer, "Number of frames for --frame-sequence") { |value| options.frame_sequence_count = value }
         opts.on("--frame-sequence-step T", Float, "4D time step per sequence frame") { |value| options.frame_sequence_step = value }
         opts.on("--max-gaussians N", Integer, "Reject PLY files with more than N vertices") { |value| options.max_gaussians = value }
+        opts.on("--max-file-bytes N", Integer, "Reject PLY files larger than N bytes") { |value| options.max_file_bytes = value }
         opts.on("--validate-ply", "Parse --file and exit") { options.validate_ply = true }
         opts.on("--print-scene-info", "Print parsed scene statistics and exit") { options.print_scene_info = true }
         opts.on("--print-gpu-info", "Print GPU/native library locator information and exit") { options.print_gpu_info = true }
@@ -249,6 +251,7 @@ module ThreeDgcViewer
       validate_tone_options(options)
       validate_sh_options(options)
       validate_max_gaussians_option(options)
+      validate_max_file_bytes_option(options)
       validate_log_level(options.log_level)
       validate_file(options.file, option_name: "--file") if options.file
       validate_output_file("--save-camera-preset", options.save_camera_preset) if options.save_camera_preset
@@ -414,6 +417,12 @@ module ThreeDgcViewer
       raise OptionParser::InvalidArgument, "--max-gaussians #{e.message}"
     end
 
+    def self.validate_max_file_bytes_option(options)
+      PlyLoader.validate_max_file_bytes(options.max_file_bytes)
+    rescue ArgumentError => e
+      raise OptionParser::InvalidArgument, "--max-file-bytes #{e.message}"
+    end
+
     def self.validate_file(path, option_name:)
       raise OptionParser::InvalidArgument, "#{option_name} does not exist: #{path}" unless File.exist?(path)
       raise OptionParser::InvalidArgument, "#{option_name} is not a regular file: #{path}" unless File.file?(path)
@@ -559,7 +568,8 @@ module ThreeDgcViewer
         @options.file,
         retain_items: false,
         sh_degree: @options.sh_degree,
-        max_vertex_count: @options.max_gaussians
+        max_vertex_count: @options.max_gaussians,
+        max_file_bytes: @options.max_file_bytes
       )
       return puts_json(scene_info_hash(gaussian_set, gaussian_set.statistics)) if @options.json
 
@@ -574,7 +584,8 @@ module ThreeDgcViewer
         @options.file,
         retain_items: false,
         sh_degree: @options.sh_degree,
-        max_vertex_count: @options.max_gaussians
+        max_vertex_count: @options.max_gaussians,
+        max_file_bytes: @options.max_file_bytes
       )
       stats = gaussian_set.statistics
       return puts_json(scene_info_hash(gaussian_set, stats)) if @options.json
@@ -739,6 +750,7 @@ module ThreeDgcViewer
         scale_multiplier: @options.scale_multiplier,
         sh_degree: @options.sh_degree,
         max_gaussians: @options.max_gaussians,
+        max_file_bytes: @options.max_file_bytes,
         shader_dev: @options.shader_dev,
         watch_files: @options.watch,
         pair_capacity_factor: pair_capacity_factor,

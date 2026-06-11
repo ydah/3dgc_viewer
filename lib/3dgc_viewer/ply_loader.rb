@@ -78,7 +78,9 @@ module ThreeDgcViewer
       :properties, :property_map, :property_alias_map, :elements, :comments, :obj_info, keyword_init: true
     )
 
-    def self.parse_file(path, retain_items: true, sh_degree: MAX_SH_DEGREE, max_vertex_count: MAX_VERTEX_COUNT)
+    def self.parse_file(path, retain_items: true, sh_degree: MAX_SH_DEGREE,
+                        max_vertex_count: MAX_VERTEX_COUNT, max_file_bytes: nil)
+      validate_file_size(path, max_file_bytes)
       File.open(path, "rb") do |file|
         if gzip_io?(file)
           gzip = Zlib::GzipReader.new(file)
@@ -93,7 +95,12 @@ module ThreeDgcViewer
       end
     end
 
-    def self.parse_bytes(bytes, retain_items: true, sh_degree: MAX_SH_DEGREE, max_vertex_count: MAX_VERTEX_COUNT)
+    def self.parse_bytes(bytes, retain_items: true, sh_degree: MAX_SH_DEGREE,
+                         max_vertex_count: MAX_VERTEX_COUNT, max_file_bytes: nil)
+      byte_size = bytes.to_s.bytesize
+      max_bytes = validate_max_file_bytes(max_file_bytes)
+      raise PlyError, "PLY input size #{byte_size} exceeds max file bytes #{max_bytes}" if max_bytes && byte_size > max_bytes
+
       io = StringIO.new(bytes.b)
       if gzip_io?(io)
         gzip = Zlib::GzipReader.new(io)
@@ -134,6 +141,23 @@ module ThreeDgcViewer
       end
 
       count
+    end
+
+    def self.validate_max_file_bytes(value)
+      return nil if value.nil?
+
+      count = Integer(value, exception: false)
+      raise ArgumentError, "max file bytes must be a positive integer" unless count&.positive?
+
+      count
+    end
+
+    def self.validate_file_size(path, max_file_bytes)
+      max_bytes = validate_max_file_bytes(max_file_bytes)
+      return unless max_bytes
+
+      size = File.size(path)
+      raise PlyError, "PLY file size #{size} exceeds max file bytes #{max_bytes}" if size > max_bytes
     end
 
     def parse

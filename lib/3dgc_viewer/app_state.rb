@@ -39,6 +39,7 @@ module ThreeDgcViewer
                    brightness: 0.0, contrast: 1.0, opacity_threshold: 0.0, scale_multiplier: 1.0,
                    sh_degree: PlyLoader::MAX_SH_DEGREE,
                    max_gaussians: PlyLoader::MAX_VERTEX_COUNT,
+                   max_file_bytes: nil,
                    shader_dev: false, watch_files: false, pair_capacity_factor: 32, recent_files_store: nil)
       @window = window
       @logger = logger
@@ -56,6 +57,7 @@ module ThreeDgcViewer
       @recent_files_store = recent_files_store
       @sh_degree = PlyLoader.validate_sh_degree(sh_degree)
       @max_gaussians = PlyLoader.validate_max_vertex_count(max_gaussians)
+      @max_file_bytes = PlyLoader.validate_max_file_bytes(max_file_bytes)
       @shader_dev = shader_dev
       @render_width = positive_int(render_width)
       @render_height = positive_int(render_height)
@@ -163,7 +165,8 @@ module ThreeDgcViewer
         path,
         retain_items: false,
         sh_degree: @sh_degree,
-        max_vertex_count: @max_gaussians
+        max_vertex_count: @max_gaussians,
+        max_file_bytes: @max_file_bytes
       )
       replace_gaussians(gaussian_set, max_pairs: max_pairs)
       @scene_path = path

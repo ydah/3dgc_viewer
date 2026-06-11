@@ -125,6 +125,14 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
       .to raise_error(ThreeDgcViewer::PlyError, /vertex count 2 exceeds max gaussians 1/)
   end
 
+  it "rejects inputs above the configured file byte limit" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    bytes = build_ply(properties, [[1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]])
+
+    expect { described_class.parse_bytes(bytes, max_file_bytes: bytes.bytesize - 1) }
+      .to raise_error(ThreeDgcViewer::PlyError, /input size .* exceeds max file bytes/)
+  end
+
   it "skips non-finite Gaussian rows and reports invalid count" do
     properties = REQUIRED_3D.map { |name| ["float", name] }
     rows = [
