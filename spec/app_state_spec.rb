@@ -365,7 +365,7 @@ RSpec.describe ThreeDgcViewer::AppState do
   end
 
   it "releases owned GPU objects at most once" do
-    object = Class.new do
+    releasable_class = Class.new do
       attr_reader :release_count
 
       def initialize
@@ -375,13 +375,17 @@ RSpec.describe ThreeDgcViewer::AppState do
       def release
         @release_count += 1
       end
-    end.new
+    end
+    object = releasable_class.new
+    shader_loader = releasable_class.new
     state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger)
     state.instance_variable_set(:@scene_uniform_buffer, object)
+    state.instance_variable_set(:@shader_loader, shader_loader)
 
     state.release
     state.release
 
     expect(object.release_count).to eq(1)
+    expect(shader_loader.release_count).to eq(1)
   end
 end

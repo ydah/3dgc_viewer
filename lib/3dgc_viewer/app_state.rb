@@ -304,6 +304,7 @@ module ThreeDgcViewer
       @released = true
       release_completed_pair_overflow_readback
       release_passes
+      @shader_loader&.release
       [
         @scene_uniform_buffer, @render_texture_view, @render_texture_sampler,
         @render_texture, @depth_texture_view, @depth_texture, @surface,
@@ -416,15 +417,19 @@ module ThreeDgcViewer
     def reload_shaders
       return false unless @shader_dev && @device
 
+      shader_loader = nil
       shader_loader = ShaderLoader.new(@device, cache_sources: false)
       passes = build_passes(shader_loader)
       release_passes
+      @shader_loader&.release
       @shader_loader = shader_loader
+      shader_loader = nil
       assign_passes(passes)
       @scene_dirty = true
       @logger.info("shaders reloaded")
       true
     rescue StandardError => e
+      shader_loader&.release
       @logger.error("shader reload failed: #{e.message}")
       false
     end
@@ -703,8 +708,12 @@ module ThreeDgcViewer
     end
 
     def create_passes
-      @shader_loader = ShaderLoader.new(@device, cache_sources: !@shader_dev)
-      assign_passes(build_passes(@shader_loader))
+      shader_loader = ShaderLoader.new(@device, cache_sources: !@shader_dev)
+      assign_passes(build_passes(shader_loader))
+      @shader_loader = shader_loader
+    rescue StandardError
+      shader_loader&.release
+      raise
     end
 
     def request_adapter!

@@ -37,4 +37,28 @@ RSpec.describe ThreeDgcViewer::Passes::BasePass do
     pass.recreate_bind_group(resources: nil)
     expect { pass.encode(nil) }.not_to raise_error
   end
+
+  it "does not own shader modules returned by the shared shader loader" do
+    shader_module = Class.new do
+      attr_reader :release_count
+
+      def initialize
+        @release_count = 0
+      end
+
+      def release
+        @release_count += 1
+      end
+    end.new
+    loader = Class.new do
+      define_method(:initialize) { |shader_module| @shader_module = shader_module }
+      define_method(:module) { |_name| @shader_module }
+    end.new(shader_module)
+    pass = described_class.new(resources: nil, shader_loader: loader)
+
+    expect(pass.send(:shader_module, "shared.wgsl")).to equal(shader_module)
+    pass.release
+
+    expect(shader_module.release_count).to eq(0)
+  end
 end

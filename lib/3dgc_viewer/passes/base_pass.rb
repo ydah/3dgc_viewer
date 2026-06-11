@@ -47,7 +47,7 @@ module ThreeDgcViewer
       end
 
       def shader_module(name)
-        @shader_modules[name] ||= keep(@shader_loader.module(name))
+        @shader_modules[name] ||= @shader_loader.module(name)
       end
 
       def keep(object)
