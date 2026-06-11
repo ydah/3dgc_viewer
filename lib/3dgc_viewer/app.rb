@@ -840,15 +840,24 @@ module ThreeDgcViewer
 
     def run_benchmark(window, state)
       frames = @options.benchmark
+      frame_statistics = FrameStatistics.new(max_samples: frames)
       started = monotonic_time
-      frames.times { render_once(window, state) }
+      frames.times do
+        frame_started = monotonic_time
+        render_once(window, state)
+        frame_statistics.record(monotonic_time - frame_started)
+      end
       elapsed = monotonic_time - started
       seconds_per_frame = elapsed / frames
+      frame_snapshot = frame_statistics.snapshot || {}
       result = {
         frames: frames,
         seconds: elapsed.round(6),
         fps: (frames / elapsed).round(2),
-        frame_ms: (seconds_per_frame * 1000.0).round(3)
+        frame_ms: (seconds_per_frame * 1000.0).round(3),
+        frame_p50_ms: frame_snapshot.fetch(:p50_ms).round(3),
+        frame_p95_ms: frame_snapshot.fetch(:p95_ms).round(3),
+        frame_p99_ms: frame_snapshot.fetch(:p99_ms).round(3)
       }
 
       return puts_json(result) if @options.json
@@ -857,6 +866,9 @@ module ThreeDgcViewer
       puts "benchmark_seconds: #{result[:seconds]}"
       puts "benchmark_fps: #{result[:fps]}"
       puts "benchmark_frame_ms: #{result[:frame_ms]}"
+      puts "benchmark_frame_p50_ms: #{result[:frame_p50_ms]}"
+      puts "benchmark_frame_p95_ms: #{result[:frame_p95_ms]}"
+      puts "benchmark_frame_p99_ms: #{result[:frame_p99_ms]}"
     end
 
     def save_screenshot(state)

@@ -262,6 +262,55 @@ RSpec.describe ThreeDgcViewer::App do
       .to raise_error(OptionParser::InvalidArgument, /window-only/)
   end
 
+  it "reports benchmark frame time percentiles" do
+    options = described_class.parse_options(%w[--benchmark 3 --json])
+    app = described_class.new(options)
+    window = Class.new do
+      attr_reader :poll_count
+
+      def initialize
+        @poll_count = 0
+      end
+
+      def poll_events
+        @poll_count += 1
+      end
+    end.new
+    state = Class.new do
+      attr_reader :update_count, :render_count
+
+      def initialize
+        @update_count = 0
+        @render_count = 0
+      end
+
+      def update
+        @update_count += 1
+      end
+
+      def render
+        @render_count += 1
+      end
+    end.new
+
+    allow(app).to receive(:monotonic_time)
+      .and_return(0.0, 0.0, 0.001, 0.001, 0.003, 0.003, 0.006, 0.006)
+
+    output = capture_stdout { app.send(:run_benchmark, window, state) }
+    data = JSON.parse(output)
+
+    expect(data).to include(
+      "frames" => 3,
+      "frame_ms" => 2.0,
+      "frame_p50_ms" => 2.0,
+      "frame_p95_ms" => 3.0,
+      "frame_p99_ms" => 3.0
+    )
+    expect(window.poll_count).to eq(3)
+    expect(state.update_count).to eq(3)
+    expect(state.render_count).to eq(3)
+  end
+
   it "rejects invalid frame sequence options" do
     expect { described_class.parse_options(%w[--frame-sequence frame.pam]) }
       .to raise_error(OptionParser::InvalidArgument, /frame-sequence/)
