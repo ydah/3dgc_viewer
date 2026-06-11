@@ -70,6 +70,34 @@ module ThreeDgcViewer
 
       attr_reader :ptr, :width, :height
 
+      class << self
+        def retain_glfw
+          glfw_lifecycle_mutex.synchronize do
+            if glfw_ref_count.zero? && Native.glfwInit.zero?
+              raise WindowError, yield
+            end
+            @glfw_ref_count = glfw_ref_count + 1
+          end
+        end
+
+        def release_glfw
+          glfw_lifecycle_mutex.synchronize do
+            @glfw_ref_count = [glfw_ref_count - 1, 0].max
+            Native.glfwTerminate if @glfw_ref_count.zero?
+          end
+        end
+
+        def glfw_ref_count
+          @glfw_ref_count ||= 0
+        end
+
+        private
+
+        def glfw_lifecycle_mutex
+          @glfw_lifecycle_mutex ||= Mutex.new
+        end
+      end
+
       def self.platform_hint
         case LibraryLocator.platform
         when /^linux-/
@@ -85,8 +113,7 @@ module ThreeDgcViewer
 
       def initialize(width:, height:, title:, visible: true)
         Native.load!
-        raise WindowError, glfw_failure_message("glfwInit failed") if Native.glfwInit.zero?
-
+        self.class.retain_glfw { glfw_failure_message("glfwInit failed") }
         @owns_glfw = true
         @width = width
         @height = height
@@ -95,7 +122,11 @@ module ThreeDgcViewer
         Native.glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API)
         Native.glfwWindowHint(GLFW_VISIBLE, visible ? GLFW_TRUE : GLFW_FALSE)
         @ptr = Native.glfwCreateWindow(width, height, title, FFI::Pointer::NULL, FFI::Pointer::NULL)
-        raise WindowError, glfw_failure_message("glfwCreateWindow failed") if @ptr.null?
+        if @ptr.null?
+          self.class.release_glfw
+          @owns_glfw = false
+          raise WindowError, glfw_failure_message("glfwCreateWindow failed")
+        end
 
         install_callbacks
       end
@@ -162,7 +193,7 @@ module ThreeDgcViewer
           Native.glfwDestroyWindow(@ptr)
           @ptr = nil
         end
-        Native.glfwTerminate if @owns_glfw
+        self.class.release_glfw if @owns_glfw
         @owns_glfw = false
       end
 
