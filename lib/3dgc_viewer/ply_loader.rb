@@ -3,6 +3,7 @@
 require_relative "errors"
 require_relative "gaussian"
 require "stringio"
+require "zlib"
 
 module ThreeDgcViewer
   class PlyLoader
@@ -46,15 +47,42 @@ module ThreeDgcViewer
     Property = Struct.new(:name, :type, :offset, :size, keyword_init: true)
     Header = Struct.new(
       :format, :header_end, :vertex_count, :vertex_stride,
-      :properties, :property_map, keyword_init: true
+      :properties, :property_map, :comments, :obj_info, keyword_init: true
     )
 
     def self.parse_file(path, retain_items: true)
-      File.open(path, "rb") { |io| new(io, retain_items: retain_items).parse }
+      File.open(path, "rb") do |file|
+        if gzip_io?(file)
+          gzip = Zlib::GzipReader.new(file)
+          begin
+            new(gzip, retain_items: retain_items).parse
+          ensure
+            gzip.close
+          end
+        else
+          new(file, retain_items: retain_items).parse
+        end
+      end
     end
 
     def self.parse_bytes(bytes, retain_items: true)
-      new(StringIO.new(bytes.b), retain_items: retain_items).parse
+      io = StringIO.new(bytes.b)
+      if gzip_io?(io)
+        gzip = Zlib::GzipReader.new(io)
+        begin
+          new(gzip, retain_items: retain_items).parse
+        ensure
+          gzip.close
+        end
+      else
+        new(io, retain_items: retain_items).parse
+      end
+    end
+
+    def self.gzip_io?(io)
+      magic = io.read(2)
+      io.rewind
+      magic == "\x1F\x8B".b
     end
 
     def initialize(io, retain_items: true)
@@ -105,12 +133,18 @@ module ThreeDgcViewer
       offset = 0
       properties = []
       property_map = {}
+      comments = []
+      obj_info = []
 
       lines.each do |line|
         tokens = line.strip.split(/\s+/)
         next if tokens.empty?
 
         case tokens[0]
+        when "comment"
+          comments << line.sub(/\A\s*comment\s?/, "").strip
+        when "obj_info"
+          obj_info << line.sub(/\A\s*obj_info\s?/, "").strip
         when "format"
           format = parse_format(tokens)
         when "element"
@@ -141,7 +175,9 @@ module ThreeDgcViewer
         vertex_count: vertex_count,
         vertex_stride: offset,
         properties: properties,
-        property_map: property_map
+        property_map: property_map,
+        comments: comments,
+        obj_info: obj_info
       )
     end
 
@@ -257,7 +293,7 @@ module ThreeDgcViewer
         packed << item.pack
       end
 
-      gaussian_set(:gaussian3d, items, packed, statistics)
+      gaussian_set(:gaussian3d, items, packed, statistics, header)
     end
 
     def parse_gaussian4d(header)
@@ -319,7 +355,7 @@ module ThreeDgcViewer
         packed << item.pack
       end
 
-      gaussian_set(:gaussian4d, items, packed, statistics)
+      gaussian_set(:gaussian4d, items, packed, statistics, header)
     end
 
     def require_properties(header, names)
@@ -350,14 +386,15 @@ module ThreeDgcViewer
       groups.flatten.all? { |value| value.to_f.finite? }
     end
 
-    def gaussian_set(kind, items, packed, statistics)
+    def gaussian_set(kind, items, packed, statistics, header)
       count = statistics.count
       Gaussian::GaussianSet.new(
         kind: kind,
         items: items || [],
         count: count,
         packed_bytes: packed,
-        statistics: statistics.to_statistics
+        statistics: statistics.to_statistics,
+        metadata: {comments: header.comments, obj_info: header.obj_info}
       )
     end
 

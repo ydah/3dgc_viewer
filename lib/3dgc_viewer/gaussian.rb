@@ -57,14 +57,15 @@ module ThreeDgcViewer
       end
     end
 
-    GaussianSet = Struct.new(:kind, :items, :count, :packed_bytes, :statistics, keyword_init: true) do
-      def initialize(kind:, items: [], count: nil, packed_bytes: nil, statistics: nil)
+    GaussianSet = Struct.new(:kind, :items, :count, :packed_bytes, :statistics, :metadata, keyword_init: true) do
+      def initialize(kind:, items: [], count: nil, packed_bytes: nil, statistics: nil, metadata: nil)
         super(
           kind: kind,
           items: items || [],
           count: count || (items || []).length,
           packed_bytes: packed_bytes,
-          statistics: statistics || Statistics.empty
+          statistics: statistics || Statistics.empty,
+          metadata: metadata || {}
         )
       end
     end

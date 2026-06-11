@@ -12,8 +12,8 @@ RSpec.describe ThreeDgcViewer::AppState do
     end
   end
 
-  def build_ply_file
-    file = Tempfile.new(["scene", ".ply"])
+  def build_ply_file(extension = ".ply")
+    file = Tempfile.new(["scene", extension])
     required = %w[
       x y z opacity scale_0 scale_1 scale_2
       rot_0 rot_1 rot_2 rot_3 f_dc_0 f_dc_1 f_dc_2
@@ -126,7 +126,7 @@ RSpec.describe ThreeDgcViewer::AppState do
   end
 
   it "updates the window title after loading a file" do
-    file = build_ply_file
+    file = build_ply_file(".notply")
     window = FakeWindow.new(1280, 720)
     state = described_class.new(window, logger: quiet_logger)
 

@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "tempfile"
+require "zlib"
 
 RSpec.describe ThreeDgcViewer::PlyLoader do
   REQUIRED_3D = %w[
@@ -14,8 +16,9 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     omega_0 omega_1 omega_2 omega_3
   ].freeze
 
-  def build_ply(properties, rows, format: "binary_little_endian")
+  def build_ply(properties, rows, format: "binary_little_endian", header_lines: [])
     header = +"ply\nformat #{format} 1.0\nelement vertex #{rows.length}\n"
+    header_lines.each { |line| header << "#{line}\n" }
     properties.each { |type, name| header << "property #{type} #{name}\n" }
     header << "end_header\n"
 
@@ -59,6 +62,34 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(set.statistics.bounds.max).to eq([1.0, 2.0, 3.0])
     expect(set.statistics.opacity_min).to be_within(1e-6).of(0.4)
     expect(set.statistics.scale_max).to be_within(1e-6).of(0.3)
+  end
+
+  it "keeps PLY comments and obj_info as metadata" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]
+
+    set = described_class.parse_bytes(
+      build_ply(properties, [row], header_lines: ["comment source test", "obj_info train_iter 42"])
+    )
+
+    expect(set.metadata[:comments]).to eq(["source test"])
+    expect(set.metadata[:obj_info]).to eq(["train_iter 42"])
+  end
+
+  it "parses gzip-compressed PLY files" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]
+    file = Tempfile.new(["scene", ".notply"])
+    file.binmode
+    Zlib::GzipWriter.wrap(file) { |gzip| gzip.write(build_ply(properties, [row])) }
+
+    set = described_class.parse_file(file.path)
+
+    expect(set.kind).to eq(:gaussian3d)
+    expect(set.count).to eq(1)
+  ensure
+    file&.close
+    file&.unlink
   end
 
   it "can parse without retaining Gaussian objects" do

@@ -118,11 +118,6 @@ module ThreeDgcViewer
     end
 
     def handle_drop(path, max_pairs: nil)
-      unless File.extname(path).downcase == ".ply"
-        @logger.warn("ignored non-PLY file: #{path}")
-        return
-      end
-
       gaussian_set = PlyLoader.parse_file(path, retain_items: false)
       replace_gaussians(gaussian_set, max_pairs: max_pairs)
       @scene_label = File.basename(path)
