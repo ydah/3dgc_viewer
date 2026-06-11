@@ -346,6 +346,26 @@ RSpec.describe ThreeDgcViewer::App do
     history&.unlink
   end
 
+  it "clears recent files from the configured history store" do
+    history = Tempfile.new(["recent", ".json"])
+    history.write(JSON.generate([File.expand_path("scene.ply")]))
+    history.close
+
+    output = capture_stdout do
+      described_class.run(["--clear-recent-files", "--recent-files", history.path, "--json"])
+    end
+
+    expect(JSON.parse(output)).to eq([])
+    expect(File.exist?(history.path)).to eq(false)
+  ensure
+    history&.unlink if history && File.exist?(history.path)
+  end
+
+  it "rejects clearing recent files when recent file persistence is disabled" do
+    expect { described_class.parse_options(%w[--clear-recent-files --no-recent-files]) }
+      .to raise_error(OptionParser::InvalidArgument, /clear-recent-files/)
+  end
+
   it "can write logs as JSON lines" do
     stderr = nil
     capture_stdout do

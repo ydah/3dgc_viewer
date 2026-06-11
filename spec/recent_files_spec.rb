@@ -38,4 +38,18 @@ RSpec.describe ThreeDgcViewer::RecentFiles do
   ensure
     file&.unlink
   end
+
+  it "clears saved history" do
+    file = Tempfile.new(["recent", ".json"])
+    path = file.path
+    file.close
+    store = described_class.new(path: path)
+    store.save(["scene.ply"])
+
+    expect(store.clear).to eq([])
+    expect(store.load).to eq([])
+    expect(File.exist?(path)).to eq(false)
+  ensure
+    File.delete(path) if path && File.exist?(path)
+  end
 end

@@ -54,6 +54,13 @@ module ThreeDgcViewer
       File.delete(tmp_path) if tmp_path && File.exist?(tmp_path)
     end
 
+    def clear
+      File.delete(@path) if @path && File.exist?(@path)
+      []
+    rescue Errno::ENOENT
+      []
+    end
+
     private
 
     def normalize(paths)

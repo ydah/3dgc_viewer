@@ -52,7 +52,7 @@ module ThreeDgcViewer
       :file, :width, :height, :log_level, :wgpu_native, :glfw, :show_axis,
       :render_width, :render_height, :render_scale, :render_size_window,
       :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info, :print_controls,
-      :print_recent_files, :recent_files, :recent_files_path,
+      :print_recent_files, :clear_recent_files, :recent_files, :recent_files_path,
       :camera_preset, :save_camera_preset, :camera_bookmarks, :camera_bookmark,
       :save_camera_bookmark, :print_camera_bookmarks,
       :log_json, :debug_errors,
@@ -90,6 +90,7 @@ module ThreeDgcViewer
         print_gpu_info: false,
         print_controls: false,
         print_recent_files: false,
+        clear_recent_files: false,
         recent_files: true,
         recent_files_path: nil,
         camera_preset: nil,
@@ -212,6 +213,7 @@ module ThreeDgcViewer
         opts.on("--print-gpu-info", "Print GPU/native library locator information and exit") { options.print_gpu_info = true }
         opts.on("--print-controls", "Print keyboard and mouse controls and exit") { options.print_controls = true }
         opts.on("--print-recent-files", "Print recent file history and exit") { options.print_recent_files = true }
+        opts.on("--clear-recent-files", "Clear recent file history and exit") { options.clear_recent_files = true }
         opts.on("--recent-files PATH", "Read/write recent file history at PATH") do |value|
           options.recent_files = true
           options.recent_files_path = value
@@ -462,6 +464,9 @@ module ThreeDgcViewer
     end
 
     def self.validate_recent_files_options(options)
+      if options.clear_recent_files && !options.recent_files
+        raise OptionParser::InvalidArgument, "--clear-recent-files cannot be combined with --no-recent-files"
+      end
       return if options.recent_files_path.nil? || !options.recent_files
       return unless options.recent_files_path.to_s.empty?
 
@@ -514,6 +519,7 @@ module ThreeDgcViewer
       return print_scene_info if @options.print_scene_info
       return print_gpu_info if @options.print_gpu_info
       return print_controls if @options.print_controls
+      return clear_recent_files if @options.clear_recent_files
       return print_recent_files if @options.print_recent_files
       return print_camera_bookmarks if @options.print_camera_bookmarks
       return save_camera_preset if @options.save_camera_preset
@@ -585,6 +591,14 @@ module ThreeDgcViewer
       return puts_json(files) if @options.json
 
       puts files
+      0
+    end
+
+    def clear_recent_files
+      files = build_recent_files_store&.clear || []
+      return puts_json(files) if @options.json
+
+      puts "cleared recent files"
       0
     end
 
