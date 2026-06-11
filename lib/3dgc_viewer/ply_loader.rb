@@ -75,7 +75,7 @@ module ThreeDgcViewer
     Property = Struct.new(:name, :type, :offset, :size, :index, keyword_init: true)
     Header = Struct.new(
       :format, :header_end, :vertex_count, :vertex_stride,
-      :properties, :property_map, :elements, :comments, :obj_info, keyword_init: true
+      :properties, :property_map, :property_alias_map, :elements, :comments, :obj_info, keyword_init: true
     )
 
     def self.parse_file(path, retain_items: true, sh_degree: MAX_SH_DEGREE, max_vertex_count: MAX_VERTEX_COUNT)
@@ -236,6 +236,7 @@ module ThreeDgcViewer
         vertex_stride: offset,
         properties: properties,
         property_map: property_map,
+        property_alias_map: build_property_alias_map(property_map),
         elements: elements,
         comments: comments,
         obj_info: obj_info
@@ -569,7 +570,14 @@ module ThreeDgcViewer
     end
 
     def property_for(header, name)
-      header.property_map[name] || PROPERTY_ALIASES.fetch(name, []).lazy.map { |alias_name| header.property_map[alias_name] }.find { |property| property }
+      header.property_map[name] || header.property_alias_map[name]
+    end
+
+    def build_property_alias_map(property_map)
+      PROPERTY_ALIASES.each_with_object({}) do |(canonical_name, aliases), alias_map|
+        property = aliases.lazy.map { |alias_name| property_map[alias_name] }.find { |candidate| candidate }
+        alias_map[canonical_name] = property if property
+      end
     end
 
     def normalize_alias_value(requested_name, property, value)
