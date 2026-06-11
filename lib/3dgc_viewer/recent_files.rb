@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "json"
+require_relative "atomic_file"
 
 module ThreeDgcViewer
   class RecentFiles
@@ -46,12 +47,8 @@ module ThreeDgcViewer
       return entries unless @path
 
       FileUtils.mkdir_p(File.dirname(@path))
-      tmp_path = "#{@path}.tmp"
-      File.write(tmp_path, "#{JSON.pretty_generate(entries)}\n")
-      File.rename(tmp_path, @path)
+      AtomicFile.write(@path, "#{JSON.pretty_generate(entries)}\n")
       entries
-    ensure
-      File.delete(tmp_path) if tmp_path && File.exist?(tmp_path)
     end
 
     def clear

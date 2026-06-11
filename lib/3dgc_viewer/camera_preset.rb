@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require_relative "atomic_file"
 
 module ThreeDgcViewer
   module CameraPreset
@@ -57,11 +58,7 @@ module ThreeDgcViewer
     end
 
     def write_json_file(path, data)
-      tmp_path = "#{path}.tmp"
-      File.write(tmp_path, "#{JSON.pretty_generate(data)}\n")
-      File.rename(tmp_path, path)
-    ensure
-      File.delete(tmp_path) if tmp_path && File.exist?(tmp_path)
+      AtomicFile.write(path, "#{JSON.pretty_generate(data)}\n")
     end
 
     def validate_vec3(value, field)

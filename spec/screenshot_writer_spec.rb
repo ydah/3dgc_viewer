@@ -40,6 +40,20 @@ RSpec.describe ThreeDgcViewer::ScreenshotWriter do
     file&.unlink
   end
 
+  it "does not overwrite existing sibling tmp files" do
+    file = Tempfile.new(["screenshot", ".ppm"])
+    sidecar_path = "#{file.path}.tmp"
+    File.binwrite(sidecar_path, "keep".b)
+    rgba = [1, 2, 3, 255].pack("C*")
+
+    described_class.write_ppm(path: file.path, width: 1, height: 1, rgba_bytes: rgba)
+
+    expect(File.binread(sidecar_path)).to eq("keep".b)
+  ensure
+    file&.unlink
+    File.delete(sidecar_path) if sidecar_path && File.exist?(sidecar_path)
+  end
+
   it "writes PAM files based on extension" do
     file = Tempfile.new(["screenshot", ".pam"])
     rgba = [1, 2, 3, 4].pack("C*")

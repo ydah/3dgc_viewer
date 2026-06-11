@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "atomic_file"
+
 module ThreeDgcViewer
   module ScreenshotWriter
     module_function
@@ -49,11 +51,7 @@ module ThreeDgcViewer
     private_class_method :validate_rgba
 
     def write_binary_file(path, bytes)
-      tmp_path = "#{path}.tmp"
-      File.binwrite(tmp_path, bytes)
-      File.rename(tmp_path, path)
-    ensure
-      File.delete(tmp_path) if tmp_path && File.exist?(tmp_path)
+      AtomicFile.write(path, bytes, binmode: true)
     end
     private_class_method :write_binary_file
 
