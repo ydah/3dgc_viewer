@@ -13,6 +13,7 @@ require_relative "3dgc_viewer/ply_loader"
 require_relative "3dgc_viewer/gaussian_resources"
 require_relative "3dgc_viewer/library_locator"
 require_relative "3dgc_viewer/shader_loader"
+require_relative "3dgc_viewer/screenshot_writer"
 require_relative "3dgc_viewer/passes"
 require_relative "3dgc_viewer/app"
 

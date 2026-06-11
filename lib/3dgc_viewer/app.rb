@@ -43,6 +43,7 @@ module ThreeDgcViewer
       :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info,
       :hidden, :smoke_frame, :smoke_resize,
       :smoke_camera, :assert_render_nonzero,
+      :screenshot, :benchmark,
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :pause, :power_preference, :present_mode,
       :background_color, :exposure, :gamma,
@@ -76,6 +77,8 @@ module ThreeDgcViewer
         smoke_resize: false,
         smoke_camera: false,
         assert_render_nonzero: false,
+        screenshot: nil,
+        benchmark: nil,
         eye: nil,
         target: nil,
         up: nil,
@@ -142,6 +145,8 @@ module ThreeDgcViewer
         opts.on("--smoke-resize", "During --smoke-frame, resize once and render again") { options.smoke_resize = true }
         opts.on("--smoke-camera", "During --smoke-frame, simulate camera keys and render again") { options.smoke_camera = true }
         opts.on("--assert-render-nonzero", "Fail if the internal render texture has no non-black RGB pixels") { options.assert_render_nonzero = true }
+        opts.on("--screenshot PATH", "Save one rendered frame as PPM and exit") { |value| options.screenshot = value }
+        opts.on("--benchmark N", Integer, "Render N frames and print timing, then exit") { |value| options.benchmark = value }
         opts.on("--validate-ply", "Parse --file and exit") { options.validate_ply = true }
         opts.on("--print-scene-info", "Print parsed scene statistics and exit") { options.print_scene_info = true }
         opts.on("--print-gpu-info", "Print GPU/native library locator information and exit") { options.print_gpu_info = true }
@@ -170,6 +175,9 @@ module ThreeDgcViewer
       validate_log_level(options.log_level)
       validate_file(options.file) if options.file
       validate_positive_int("--max-pairs", options.max_pairs) if options.max_pairs
+      validate_positive_int("--benchmark", options.benchmark) if options.benchmark
+      validate_screenshot_path(options.screenshot) if options.screenshot
+      validate_batch_options(options)
       apply_render_scale(options, explicit_render_size: explicit_render_size) if options.render_scale
     end
 
@@ -278,6 +286,23 @@ module ThreeDgcViewer
       raise OptionParser::InvalidArgument, "--file does not exist: #{path}" unless File.exist?(path)
       raise OptionParser::InvalidArgument, "--file is not a regular file: #{path}" unless File.file?(path)
       raise OptionParser::InvalidArgument, "--file is not readable: #{path}" unless File.readable?(path)
+    end
+
+    def self.validate_screenshot_path(path)
+      raise OptionParser::InvalidArgument, "--screenshot must not be empty" if path.to_s.empty?
+      raise OptionParser::InvalidArgument, "--screenshot path must end with .ppm" unless File.extname(path).casecmp?(".ppm")
+
+      directory = File.dirname(path)
+      raise OptionParser::InvalidArgument, "--screenshot directory does not exist: #{directory}" unless Dir.exist?(directory)
+      raise OptionParser::InvalidArgument, "--screenshot directory is not writable: #{directory}" unless File.writable?(directory)
+      raise OptionParser::InvalidArgument, "--screenshot file is not writable: #{path}" if File.exist?(path) && !File.writable?(path)
+    end
+
+    def self.validate_batch_options(options)
+      return unless options.window_only
+      return unless options.smoke_frame || options.screenshot || options.benchmark
+
+      raise OptionParser::InvalidArgument, "--window-only cannot be combined with render batch options"
     end
 
     def self.apply_render_scale(options, explicit_render_size:)
@@ -433,8 +458,8 @@ module ThreeDgcViewer
       install_state_callbacks(window, state)
       state.initialize_gpu
       state.handle_drop(@options.file, max_pairs: @options.max_pairs) if @options.file
-      if @options.smoke_frame
-        render_smoke_frame(window, state)
+      if batch_render_mode?
+        run_batch_render(window, state)
         return
       end
       loop_until_close(window, state)
@@ -485,13 +510,45 @@ module ThreeDgcViewer
       window.on_scroll { |x_offset, y_offset| state.handle_scroll(x_offset, y_offset) }
     end
 
-    def render_smoke_frame(window, state)
-      render_once(window, state)
+    def batch_render_mode?
+      @options.smoke_frame || @options.screenshot || @options.benchmark
+    end
+
+    def run_batch_render(window, state)
+      render_once(window, state) unless @options.benchmark && !@options.smoke_frame
       run_smoke_resize(window, state) if @options.smoke_resize
       run_smoke_camera(window, state) if @options.smoke_camera
+      run_benchmark(window, state) if @options.benchmark
+      save_screenshot(state) if @options.screenshot
       return unless @options.assert_render_nonzero
 
       raise WgpuError, "render texture did not contain non-black RGB pixels" unless state.render_texture_rgb_nonzero?
+    end
+
+    def run_benchmark(window, state)
+      frames = @options.benchmark
+      started = monotonic_time
+      frames.times { render_once(window, state) }
+      elapsed = monotonic_time - started
+      seconds_per_frame = elapsed / frames
+      result = {
+        frames: frames,
+        seconds: elapsed.round(6),
+        fps: (frames / elapsed).round(2),
+        frame_ms: (seconds_per_frame * 1000.0).round(3)
+      }
+
+      return puts_json(result) if @options.json
+
+      puts "benchmark_frames: #{result[:frames]}"
+      puts "benchmark_seconds: #{result[:seconds]}"
+      puts "benchmark_fps: #{result[:fps]}"
+      puts "benchmark_frame_ms: #{result[:frame_ms]}"
+    end
+
+    def save_screenshot(state)
+      state.save_screenshot(@options.screenshot)
+      @logger.info("screenshot saved: #{@options.screenshot}")
     end
 
     def render_once(window, state)
@@ -551,6 +608,10 @@ module ThreeDgcViewer
 
     def logger_level(value)
       LOG_LEVELS.fetch(value.to_s.downcase)
+    end
+
+    def monotonic_time
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
   end
 end

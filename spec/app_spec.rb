@@ -50,6 +50,8 @@ RSpec.describe ThreeDgcViewer::App do
   end
 
   it "parses camera and playback options" do
+    screenshot = Tempfile.new(["frame", ".ppm"])
+    screenshot.close
     options = described_class.parse_options(%w[
       --camera 1,2,3:4,5,6:0,1,0
       --fov 60
@@ -66,7 +68,8 @@ RSpec.describe ThreeDgcViewer::App do
       --quality fast
       --low-vram
       --watch
-    ])
+      --benchmark 3
+    ] + ["--screenshot", screenshot.path])
 
     expect(options.eye).to eq([1.0, 2.0, 3.0])
     expect(options.target).to eq([4.0, 5.0, 6.0])
@@ -85,6 +88,10 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.quality).to eq(:fast)
     expect(options.low_vram).to eq(true)
     expect(options.watch).to eq(true)
+    expect(options.benchmark).to eq(3)
+    expect(options.screenshot).to eq(screenshot.path)
+  ensure
+    screenshot&.unlink
   end
 
   it "rejects invalid log level" do
@@ -116,6 +123,15 @@ RSpec.describe ThreeDgcViewer::App do
   it "rejects invalid quality presets" do
     expect { described_class.parse_options(%w[--quality ultra]) }
       .to raise_error(OptionParser::InvalidArgument, /quality/)
+  end
+
+  it "rejects invalid batch render options" do
+    expect { described_class.parse_options(%w[--benchmark 0]) }
+      .to raise_error(OptionParser::InvalidArgument, /benchmark/)
+    expect { described_class.parse_options(%w[--screenshot frame.png]) }
+      .to raise_error(OptionParser::InvalidArgument, /screenshot/)
+    expect { described_class.parse_options(%w[--window-only --benchmark 1]) }
+      .to raise_error(OptionParser::InvalidArgument, /window-only/)
   end
 
   it "checks startup file paths during option parsing" do

@@ -10,6 +10,7 @@ require_relative "passes"
 require_relative "ply_loader"
 require_relative "scene_uniform"
 require_relative "shader_loader"
+require_relative "screenshot_writer"
 require_relative "wgpu/surface_shim"
 require_relative "window/glfw"
 
@@ -50,6 +51,7 @@ module ThreeDgcViewer
       @recent_files = []
       @last_fps = nil
       @resource_generation = 0
+      @released = false
       @pair_overflow_readback = nil
       @last_update_time = monotonic_time
       @fps_timer = monotonic_time
@@ -186,29 +188,29 @@ module ThreeDgcViewer
     end
 
     def render_texture_rgb_nonzero?
-      raise WgpuError, "GPU is not initialized" unless @device && @queue && @render_texture
-
-      row_bytes = @render_width * 4
-      bytes_per_row = align_copy_bytes_per_row(row_bytes)
-      data = @queue.read_texture(
-        source: {texture: @render_texture},
-        data_layout: {
-          offset: 0,
-          bytes_per_row: bytes_per_row,
-          rows_per_image: @render_height
-        },
-        size: {
-          width: @render_width,
-          height: @render_height,
-          depth_or_array_layers: 1
-        },
-        device: @device
-      )
-      @render_height.times.any? do |row|
-        data.byteslice(row * bytes_per_row, row_bytes).bytes.each_slice(4).any? do |r, g, b, _a|
-          r.to_i.positive? || g.to_i.positive? || b.to_i.positive?
-        end
+      render_texture_rgba_bytes.bytes.each_slice(4).any? do |red, green, blue, _alpha|
+        red.to_i.positive? || green.to_i.positive? || blue.to_i.positive?
       end
+    end
+
+    def render_texture_rgba_bytes
+      data, row_bytes, bytes_per_row = read_render_texture_rows
+      return data.byteslice(0, row_bytes * @render_height).to_s.b if row_bytes == bytes_per_row
+
+      rgba = String.new(capacity: row_bytes * @render_height, encoding: Encoding::BINARY)
+      @render_height.times do |row|
+        rgba << data.byteslice(row * bytes_per_row, row_bytes).to_s.b
+      end
+      rgba
+    end
+
+    def save_screenshot(path)
+      ScreenshotWriter.write_ppm(
+        path: path,
+        width: @render_width,
+        height: @render_height,
+        rgba_bytes: render_texture_rgba_bytes
+      )
     end
 
     def should_request_redraw?
@@ -216,6 +218,9 @@ module ThreeDgcViewer
     end
 
     def release
+      return if @released
+
+      @released = true
       release_completed_pair_overflow_readback
       [
         @preprocess_pass, @prefix_scan_pass, @duplicate_pass, @radix_sort_pass,
@@ -225,6 +230,7 @@ module ThreeDgcViewer
         @queue, @device, @adapter, @instance
       ].compact.each { |object| object.release if object.respond_to?(:release) }
       @resources&.release
+      @is_surface_configured = false
     end
 
     def replace_gaussians(gaussian_set, max_pairs: nil, auto_fit: true)
@@ -417,6 +423,28 @@ module ThreeDgcViewer
 
     def align_copy_bytes_per_row(row_bytes)
       ((row_bytes + 255) / 256) * 256
+    end
+
+    def read_render_texture_rows
+      raise WgpuError, "GPU is not initialized" unless @device && @queue && @render_texture
+
+      row_bytes = @render_width * 4
+      bytes_per_row = align_copy_bytes_per_row(row_bytes)
+      data = @queue.read_texture(
+        source: {texture: @render_texture},
+        data_layout: {
+          offset: 0,
+          bytes_per_row: bytes_per_row,
+          rows_per_image: @render_height
+        },
+        size: {
+          width: @render_width,
+          height: @render_height,
+          depth_or_array_layers: 1
+        },
+        device: @device
+      )
+      [data, row_bytes, bytes_per_row]
     end
 
     def positive_int(value)
