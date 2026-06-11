@@ -61,10 +61,19 @@ module ThreeDgcViewer
       "float64" => [:d, 8]
     }.freeze
 
+    BodyProperty = Struct.new(
+      :name, :type, :size, :list, :count_type, :count_size, :value_type, :value_size,
+      keyword_init: true
+    ) do
+      def list?
+        list
+      end
+    end
+    Element = Struct.new(:name, :count, :properties, keyword_init: true)
     Property = Struct.new(:name, :type, :offset, :size, :index, keyword_init: true)
     Header = Struct.new(
       :format, :header_end, :vertex_count, :vertex_stride,
-      :properties, :property_map, :comments, :obj_info, keyword_init: true
+      :properties, :property_map, :elements, :comments, :obj_info, keyword_init: true
     )
 
     def self.parse_file(path, retain_items: true)
@@ -150,6 +159,8 @@ module ThreeDgcViewer
       offset = 0
       properties = []
       property_map = {}
+      elements = []
+      current_element = nil
       comments = []
       obj_info = []
 
@@ -165,9 +176,20 @@ module ThreeDgcViewer
         when "format"
           format = parse_format(tokens)
         when "element"
-          in_vertex = tokens[1] == "vertex"
-          vertex_count = parse_vertex_count(tokens) if in_vertex
+          current_element = parse_element(tokens)
+          elements << current_element
+          in_vertex = current_element.name == "vertex"
+          if in_vertex
+            raise PlyError, "duplicate PLY vertex element" if vertex_count
+
+            vertex_count = current_element.count
+            offset = 0
+          end
         when "property"
+          raise PlyError, "PLY property appears before any element" unless current_element
+
+          body_property = parse_body_property(tokens)
+          current_element.properties << body_property
           next unless in_vertex
 
           property = parse_property(tokens, offset, properties.length)
@@ -191,6 +213,7 @@ module ThreeDgcViewer
         vertex_stride: offset,
         properties: properties,
         property_map: property_map,
+        elements: elements,
         comments: comments,
         obj_info: obj_info
       )
@@ -210,14 +233,44 @@ module ThreeDgcViewer
       end
     end
 
-    def parse_vertex_count(tokens)
-      raise PlyError, "invalid element vertex line" unless tokens.length >= 3
+    def parse_element(tokens)
+      raise PlyError, "invalid element line" unless tokens.length >= 3
 
-      count = Integer(tokens[2], exception: false) || raise(PlyError, "invalid vertex count: #{tokens[2].inspect}")
-      raise PlyError, "vertex count must be non-negative" if count.negative?
-      raise PlyError, "vertex count exceeds #{MAX_VERTEX_COUNT}" if count > MAX_VERTEX_COUNT
+      name = tokens[1]
+      count = Integer(tokens[2], exception: false) || raise(PlyError, "invalid element count: #{tokens[2].inspect}")
+      raise PlyError, "element count must be non-negative" if count.negative?
+      raise PlyError, "element count exceeds #{MAX_VERTEX_COUNT}" if count > MAX_VERTEX_COUNT
 
-      count
+      Element.new(name: name, count: count, properties: [])
+    end
+
+    def parse_body_property(tokens)
+      if tokens[1] == "list"
+        raise PlyError, "invalid list property line" unless tokens.length >= 5
+
+        count_scalar = SCALAR_TYPES[tokens[2]]
+        value_scalar = SCALAR_TYPES[tokens[3]]
+        raise PlyError, "unsupported PLY list count type: #{tokens[2]}" unless count_scalar
+        raise PlyError, "unsupported PLY list value type: #{tokens[3]}" unless value_scalar
+        raise PlyError, "PLY property name is too long" if tokens[4].bytesize > MAX_PROPERTY_NAME_BYTES
+
+        return BodyProperty.new(
+          name: tokens[4],
+          list: true,
+          count_type: count_scalar[0],
+          count_size: count_scalar[1],
+          value_type: value_scalar[0],
+          value_size: value_scalar[1]
+        )
+      end
+
+      raise PlyError, "invalid property line" unless tokens.length >= 3
+
+      scalar = SCALAR_TYPES[tokens[1]]
+      raise PlyError, "unsupported PLY scalar type: #{tokens[1]}" unless scalar
+      raise PlyError, "PLY property name is too long" if tokens[2].bytesize > MAX_PROPERTY_NAME_BYTES
+
+      BodyProperty.new(name: tokens[2], type: scalar[0], size: scalar[1], list: false)
     end
 
     def parse_property(tokens, offset, index)
@@ -235,11 +288,24 @@ module ThreeDgcViewer
     def validate_body_size(header)
       return if header.format == :ascii
 
-      expected_body_size = header.vertex_count * header.vertex_stride
+      expected_body_size = fixed_binary_body_size(header)
+      return unless expected_body_size
+
       expected_total_size = header.header_end + expected_body_size
       return unless @io.respond_to?(:size)
 
       raise PlyError, "PLY body is too short" if @io.size < expected_total_size
+    end
+
+    def fixed_binary_body_size(header)
+      header.elements.sum do |element|
+        row_size = element.properties.sum do |property|
+          return nil if property.list?
+
+          property.size
+        end
+        element.count * row_size
+      end
     end
 
     def classify(header)
@@ -260,6 +326,7 @@ module ThreeDgcViewer
 
     def parse_gaussian3d(header)
       require_properties(header, REQUIRED_3DGS_FIELDS)
+      skip_elements_before_vertex(header)
 
       items = @retain_items ? [] : nil
       packed = +"".b
@@ -314,6 +381,7 @@ module ThreeDgcViewer
 
     def parse_gaussian4d(header)
       require_properties(header, REQUIRED_3DGS_FIELDS + REQUIRED_STG_LITE_FIELDS)
+      skip_elements_before_vertex(header)
 
       items = @retain_items ? [] : nil
       packed = +"".b
@@ -379,6 +447,54 @@ module ThreeDgcViewer
       return if missing.empty?
 
       raise PlyError, "missing required PLY vertex properties: #{missing.join(", ")}"
+    end
+
+    def skip_elements_before_vertex(header)
+      header.elements.each do |element|
+        return if element.name == "vertex"
+
+        skip_element(element, header.format)
+      end
+    end
+
+    def skip_element(element, format)
+      element.count.times do |index|
+        if format == :ascii
+          line = @io.gets
+          raise PlyError, "PLY body is too short while skipping #{element.name} at row #{index}" unless line
+          next
+        end
+
+        element.properties.each do |property|
+          skip_body_property(property, format, element.name, index)
+        end
+      end
+    end
+
+    def skip_body_property(property, format, element_name, row_index)
+      unless property.list?
+        skip_bytes(property.size, "while skipping #{element_name} at row #{row_index}")
+        return
+      end
+
+      count_chunk = read_exact(property.count_size, "while reading #{element_name}.#{property.name} list count at row #{row_index}")
+      count = unpack_scalar(count_chunk, property.count_type, format).to_i
+      raise PlyError, "negative PLY list count for #{element_name}.#{property.name} at row #{row_index}" if count.negative?
+
+      skip_bytes(count * property.value_size, "while skipping #{element_name}.#{property.name} list values at row #{row_index}")
+    end
+
+    def skip_bytes(size, context)
+      return if size.zero?
+
+      read_exact(size, context)
+    end
+
+    def read_exact(size, context)
+      bytes = @io.read(size)
+      return bytes if bytes&.bytesize == size
+
+      raise PlyError, "PLY body is too short #{context}"
     end
 
     def read(header, row, name, default: nil, vertex_index: nil)

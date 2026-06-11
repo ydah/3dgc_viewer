@@ -139,6 +139,39 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(set.items.first.sh[0]).to eq(0.7)
   end
 
+  it "skips scalar non-vertex elements before ASCII vertices" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]
+    header = +"ply\nformat ascii 1.0\n"
+    header << "element camera 1\nproperty float focal\n"
+    header << "element vertex 1\n"
+    properties.each { |type, name| header << "property #{type} #{name}\n" }
+    header << "end_header\n"
+    bytes = "#{header}35.0\n#{row.join(" ")}\n"
+
+    set = described_class.parse_bytes(bytes)
+
+    expect(set.kind).to eq(:gaussian3d)
+    expect(set.items.first.position).to eq([1.0, 2.0, 3.0])
+  end
+
+  it "skips list non-vertex elements before binary vertices" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]
+    header = +"ply\nformat binary_little_endian 1.0\n"
+    header << "element face 1\nproperty list uchar int vertex_indices\n"
+    header << "element vertex 1\n"
+    properties.each { |type, name| header << "property #{type} #{name}\n" }
+    header << "end_header\n"
+    face = [3].pack("C") + [0, 1, 2].pack("l<*")
+    vertex = properties.each_with_index.map { |(type, _name), index| pack_scalar(type, row[index]) }.join
+
+    set = described_class.parse_bytes((header + face + vertex).b)
+
+    expect(set.kind).to eq(:gaussian3d)
+    expect(set.items.first.position).to eq([1.0, 2.0, 3.0])
+  end
+
   it "parses common property aliases and RGB color fallback" do
     properties = [
       ["float", "position_x"],
