@@ -16,11 +16,11 @@ module ThreeDgcViewer
     end
 
     def write_ppm(path:, width:, height:, rgba_bytes:)
-      File.binwrite(path, ppm_bytes(width: width, height: height, rgba_bytes: rgba_bytes))
+      write_binary_file(path, ppm_bytes(width: width, height: height, rgba_bytes: rgba_bytes))
     end
 
     def write_pam(path:, width:, height:, rgba_bytes:)
-      File.binwrite(path, pam_bytes(width: width, height: height, rgba_bytes: rgba_bytes))
+      write_binary_file(path, pam_bytes(width: width, height: height, rgba_bytes: rgba_bytes))
     end
 
     def ppm_bytes(width:, height:, rgba_bytes:)
@@ -47,6 +47,15 @@ module ThreeDgcViewer
       [width, height, rgba_bytes]
     end
     private_class_method :validate_rgba
+
+    def write_binary_file(path, bytes)
+      tmp_path = "#{path}.tmp"
+      File.binwrite(tmp_path, bytes)
+      File.rename(tmp_path, path)
+    ensure
+      File.delete(tmp_path) if tmp_path && File.exist?(tmp_path)
+    end
+    private_class_method :write_binary_file
 
     def rgb_bytes(rgba_bytes)
       rgb = String.new(capacity: (rgba_bytes.bytesize / 4) * 3, encoding: Encoding::BINARY)

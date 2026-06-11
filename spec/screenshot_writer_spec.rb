@@ -35,6 +35,7 @@ RSpec.describe ThreeDgcViewer::ScreenshotWriter do
     described_class.write_ppm(path: file.path, width: 1, height: 1, rgba_bytes: rgba)
 
     expect(File.binread(file.path)).to eq("P6\n1 1\n255\n".b + [1, 2, 3].pack("C*"))
+    expect(File).not_to exist("#{file.path}.tmp")
   ensure
     file&.unlink
   end
