@@ -379,6 +379,7 @@ module ThreeDgcViewer
 
     def self.validate_time_options(options)
       raise OptionParser::InvalidArgument, "--time must be finite" unless options.time.to_f.finite?
+      raise OptionParser::InvalidArgument, "--time must satisfy 0 <= T < 1" unless options.time >= 0.0 && options.time < 1.0
       raise OptionParser::InvalidArgument, "--time-speed must be finite" unless options.time_speed.to_f.finite?
       raise OptionParser::InvalidArgument, "--turntable-speed must be finite" unless options.turntable_speed.to_f.finite?
     end

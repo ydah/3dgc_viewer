@@ -225,6 +225,10 @@ RSpec.describe ThreeDgcViewer::App do
   end
 
   it "rejects invalid time ranges" do
+    expect { described_class.parse_options(%w[--time 1.0]) }
+      .to raise_error(OptionParser::InvalidArgument, /--time/)
+    expect { described_class.parse_options(%w[--time -0.1]) }
+      .to raise_error(OptionParser::InvalidArgument, /--time/)
     expect { described_class.parse_options(%w[--time-range 0.8,0.2]) }
       .to raise_error(OptionParser::InvalidArgument, /time-range/)
   end
