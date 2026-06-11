@@ -20,6 +20,30 @@ RSpec.describe ThreeDgcViewer::Camera do
     )
     expect(distance).to be > bounds.radius
   end
+
+  it "keeps default aspect finite for invalid dimensions" do
+    camera = described_class.default(width: 640, height: 0)
+
+    expect(camera.aspect).to eq(640.0)
+    expect(camera.projection_matrix).to all(be_finite)
+  end
+
+  it "keeps fit bounds finite for invalid direct camera parameters" do
+    camera = described_class.default(width: 1280, height: 720)
+    camera.aspect = 0.0
+    camera.fovy = 0.0
+    bounds = ThreeDgcViewer::Gaussian::Bounds.new(
+      min: [1.0, 1.0, 1.0],
+      max: [1.0, 1.0, 1.0]
+    )
+
+    camera.fit_bounds(bounds)
+
+    expect(camera.eye).to all(be_finite)
+    expect(camera.znear).to be_finite
+    expect(camera.zfar).to be_finite
+    expect(camera.zfar).to be > camera.znear
+  end
 end
 
 RSpec.describe ThreeDgcViewer::CameraController do

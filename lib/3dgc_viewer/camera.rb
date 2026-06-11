@@ -6,11 +6,13 @@ require_relative "window/keymap"
 module ThreeDgcViewer
   Camera = Struct.new(:eye, :target, :up, :aspect, :fovy, :znear, :zfar, keyword_init: true) do
     def self.default(width: Scene::SCREEN_WIDTH, height: Scene::SCREEN_HEIGHT)
+      safe_width = positive_float(width, 1.0)
+      safe_height = positive_float(height, 1.0)
       new(
         eye: [10.0, 5.0, 10.0],
         target: [0.0, 0.0, 0.0],
         up: [0.0, 1.0, 0.0],
-        aspect: width.to_f / height.to_f,
+        aspect: safe_width / safe_height,
         fovy: 45.0,
         znear: 0.1,
         zfar: 10_000.0
@@ -30,10 +32,12 @@ module ThreeDgcViewer
 
       scene_center = bounds.center
       scene_radius = bounds.radius * padding.to_f
-      half_fovy = (fovy * Math::PI / 180.0) * 0.5
-      half_fovx = Math.atan(Math.tan(half_fovy) * aspect.to_f)
+      safe_aspect = self.class.positive_float(aspect, 1.0)
+      safe_fovy = [[self.class.positive_float(fovy, 45.0), 1.0].max, 179.0].min
+      half_fovy = (safe_fovy * Math::PI / 180.0) * 0.5
+      half_fovx = Math.atan(Math.tan(half_fovy) * safe_aspect)
       fit_half_angle = [half_fovy, half_fovx].min
-      distance = scene_radius / Math.sin(fit_half_angle)
+      distance = scene_radius / [Math.sin(fit_half_angle), Math3D::EPSILON].max
       direction = Math3D::Vec3.normalize(Math3D::Vec3.sub(eye, target))
       direction = [0.0, 0.0, 1.0] if Math3D::Vec3.length(direction) < Math3D::EPSILON
 
@@ -42,6 +46,11 @@ module ThreeDgcViewer
       self.znear = [distance - (scene_radius * 2.0), distance * 0.001, 0.001].max
       self.zfar = [distance + (scene_radius * 2.0), znear * 2.0].max
       self
+    end
+
+    def self.positive_float(value, fallback)
+      number = value.to_f
+      number.finite? && number.positive? ? number : fallback
     end
   end
 
