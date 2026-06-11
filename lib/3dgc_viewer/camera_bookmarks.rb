@@ -11,11 +11,11 @@ module ThreeDgcViewer
       data = JSON.parse(File.read(path))
       raise ArgumentError, "camera bookmarks must be a JSON object" unless data.is_a?(Hash)
 
-      data.each_with_object({}) do |(name, preset_data), bookmarks|
-        raise ArgumentError, "camera bookmark name must not be empty" if name.to_s.empty?
-        raise ArgumentError, "camera bookmark #{name.inspect} must be a JSON object" unless preset_data.is_a?(Hash)
+      data.each_with_object({}) do |(raw_name, preset_data), bookmarks|
+        name = normalize_name(raw_name)
+        raise ArgumentError, "camera bookmark #{raw_name.inspect} must be a JSON object" unless preset_data.is_a?(Hash)
 
-        bookmarks[name.to_s] = CameraPreset.load_hash(preset_data)
+        bookmarks[name] = CameraPreset.load_hash(preset_data)
       end
     rescue JSON::ParserError => e
       raise ArgumentError, e.message
@@ -23,7 +23,7 @@ module ThreeDgcViewer
 
     def fetch_file(path, name)
       bookmarks = load_file(path)
-      bookmark = bookmarks[name.to_s]
+      bookmark = bookmarks[normalize_name(name)]
       raise ArgumentError, "camera bookmark not found: #{name}" unless bookmark
 
       bookmark
@@ -34,10 +34,10 @@ module ThreeDgcViewer
     end
 
     def write_file(path, name, camera)
-      raise ArgumentError, "camera bookmark name must not be empty" if name.to_s.empty?
+      name = normalize_name(name)
 
       data = File.file?(path) && File.size(path).positive? ? load_raw_file(path) : {}
-      data[name.to_s] = stringify_keys(CameraPreset.hash_from_camera(camera))
+      data[name] = stringify_keys(CameraPreset.hash_from_camera(camera))
       CameraPreset.write_json_file(path, data)
     end
 
@@ -55,5 +55,13 @@ module ThreeDgcViewer
       hash.transform_keys(&:to_s)
     end
     private_class_method :stringify_keys
+
+    def normalize_name(name)
+      normalized = name.to_s.strip
+      raise ArgumentError, "camera bookmark name must not be empty" if normalized.empty?
+
+      normalized
+    end
+    private_class_method :normalize_name
   end
 end

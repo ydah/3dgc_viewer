@@ -21,7 +21,7 @@ RSpec.describe ThreeDgcViewer::CameraBookmarks do
     camera = ThreeDgcViewer::Camera.default(width: 640, height: 360)
     camera.eye = [4.0, 5.0, 6.0]
 
-    described_class.write_file(file.path, "detail", camera)
+    described_class.write_file(file.path, " detail ", camera)
     data = JSON.parse(File.read(file.path))
 
     expect(data.dig("detail", "eye")).to eq([4.0, 5.0, 6.0])
@@ -36,6 +36,8 @@ RSpec.describe ThreeDgcViewer::CameraBookmarks do
 
     expect { described_class.fetch_file(file.path, "side") }
       .to raise_error(ArgumentError, /not found/)
+    expect { described_class.write_file(file.path, " ", ThreeDgcViewer::Camera.default(width: 640, height: 360)) }
+      .to raise_error(ArgumentError, /must not be empty/)
   ensure
     file&.unlink
   end
