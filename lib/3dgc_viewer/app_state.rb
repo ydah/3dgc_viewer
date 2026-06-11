@@ -77,14 +77,14 @@ module ThreeDgcViewer
       @scene_dirty = true if @camera_controller.handle_key(key, pressed)
     end
 
-    def handle_drop(path)
+    def handle_drop(path, max_pairs: nil)
       unless File.extname(path).downcase == ".ply"
         @logger.warn("ignored non-PLY file: #{path}")
         return
       end
 
       gaussian_set = PlyLoader.parse_file(path, retain_items: false)
-      replace_gaussians(gaussian_set)
+      replace_gaussians(gaussian_set, max_pairs: max_pairs)
       @logger.info("loaded #{gaussian_set.kind} with #{gaussian_set.count} gaussians")
       if gaussian_set.statistics.invalid_count.positive?
         @logger.warn("ignored #{gaussian_set.statistics.invalid_count} invalid gaussians")
