@@ -72,16 +72,7 @@ module ThreeDgcViewer
 
     Gaussian3d = Struct.new(:position, :opacity, :scale, :rotation, :sh, keyword_init: true) do
       def pack
-        sh_values = Array(sh || []).first(SH_COUNT)
-        sh_values += Array.new(SH_COUNT - sh_values.length, 0.0)
-
-        BinaryPack.concat(
-          BinaryPack.f32(position[0], position[1], position[2], opacity),
-          BinaryPack.f32(scale[0], scale[1], scale[2]),
-          BinaryPack.u32(0),
-          BinaryPack.f32(rotation[0], rotation[1], rotation[2], rotation[3]),
-          BinaryPack.f32(sh_values)
-        )
+        Gaussian.pack_3d(position: position, opacity: opacity, scale: scale, rotation: rotation, sh: sh)
       end
     end
 
@@ -92,27 +83,57 @@ module ThreeDgcViewer
       keyword_init: true
     ) do
       def pack
-        BinaryPack.concat(
-          BinaryPack.f32(position[0], position[1], position[2], opacity),
-          BinaryPack.f32(scale[0], scale[1], scale[2]),
-          BinaryPack.u32(0),
-          BinaryPack.f32(rotation[0], rotation[1], rotation[2], rotation[3]),
-          BinaryPack.f32(motion_0[0], motion_0[1], motion_0[2]),
-          BinaryPack.u32(0),
-          BinaryPack.f32(motion_1[0], motion_1[1], motion_1[2]),
-          BinaryPack.u32(0),
-          BinaryPack.f32(motion_2[0], motion_2[1], motion_2[2]),
-          BinaryPack.u32(0),
-          BinaryPack.f32(omega[0], omega[1], omega[2], omega[3]),
-          BinaryPack.f32(trbf_center, trbf_scale),
-          BinaryPack.u32(0, 0),
-          BinaryPack.f32(base_color[0], base_color[1], base_color[2]),
-          BinaryPack.u32(0)
+        Gaussian.pack_4d(
+          position: position,
+          opacity: opacity,
+          scale: scale,
+          rotation: rotation,
+          motion_0: motion_0,
+          motion_1: motion_1,
+          motion_2: motion_2,
+          omega: omega,
+          trbf_center: trbf_center,
+          trbf_scale: trbf_scale,
+          base_color: base_color
         )
       end
     end
 
     module_function
+
+    def pack_3d(position:, opacity:, scale:, rotation:, sh:)
+      sh_values = Array(sh || []).first(SH_COUNT)
+      sh_values += Array.new(SH_COUNT - sh_values.length, 0.0)
+
+      BinaryPack.concat(
+        BinaryPack.f32(position[0], position[1], position[2], opacity),
+        BinaryPack.f32(scale[0], scale[1], scale[2]),
+        BinaryPack.u32(0),
+        BinaryPack.f32(rotation[0], rotation[1], rotation[2], rotation[3]),
+        BinaryPack.f32(sh_values)
+      )
+    end
+
+    def pack_4d(position:, opacity:, scale:, rotation:, motion_0:, motion_1:, motion_2:,
+                omega:, trbf_center:, trbf_scale:, base_color:)
+      BinaryPack.concat(
+        BinaryPack.f32(position[0], position[1], position[2], opacity),
+        BinaryPack.f32(scale[0], scale[1], scale[2]),
+        BinaryPack.u32(0),
+        BinaryPack.f32(rotation[0], rotation[1], rotation[2], rotation[3]),
+        BinaryPack.f32(motion_0[0], motion_0[1], motion_0[2]),
+        BinaryPack.u32(0),
+        BinaryPack.f32(motion_1[0], motion_1[1], motion_1[2]),
+        BinaryPack.u32(0),
+        BinaryPack.f32(motion_2[0], motion_2[1], motion_2[2]),
+        BinaryPack.u32(0),
+        BinaryPack.f32(omega[0], omega[1], omega[2], omega[3]),
+        BinaryPack.f32(trbf_center, trbf_scale),
+        BinaryPack.u32(0, 0),
+        BinaryPack.f32(base_color[0], base_color[1], base_color[2]),
+        BinaryPack.u32(0)
+      )
+    end
 
     def pack_set(gaussian_set)
       return gaussian_set.packed_bytes.b if gaussian_set.packed_bytes

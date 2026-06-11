@@ -15,6 +15,26 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
     expect(gaussian.pack.bytesize).to eq(240)
   end
 
+  it "packs Gaussian3d directly without changing the byte layout" do
+    gaussian = ThreeDgcViewer::Gaussian::Gaussian3d.new(
+      position: [1.0, 2.0, 3.0],
+      opacity: 0.5,
+      scale: [0.1, 0.2, 0.3],
+      rotation: [1.0, 0.0, 0.0, 0.0],
+      sh: Array.new(48, 0.25)
+    )
+
+    direct = ThreeDgcViewer::Gaussian.pack_3d(
+      position: gaussian.position,
+      opacity: gaussian.opacity,
+      scale: gaussian.scale,
+      rotation: gaussian.rotation,
+      sh: gaussian.sh
+    )
+
+    expect(direct).to eq(gaussian.pack)
+  end
+
   it "packs Gaussian sets without requiring retained objects when bytes are provided" do
     bytes = "abc".b
     set = ThreeDgcViewer::Gaussian::GaussianSet.new(kind: :gaussian3d, count: 1, packed_bytes: bytes)
@@ -38,6 +58,38 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
     )
 
     expect(gaussian.pack.bytesize).to eq(144)
+  end
+
+  it "packs Gaussian4d directly without changing the byte layout" do
+    gaussian = ThreeDgcViewer::Gaussian::Gaussian4d.new(
+      position: [1.0, 2.0, 3.0],
+      opacity: 0.5,
+      scale: [0.1, 0.2, 0.3],
+      rotation: [1.0, 0.0, 0.0, 0.0],
+      motion_0: [0.0, 0.1, 0.2],
+      motion_1: [0.3, 0.4, 0.5],
+      motion_2: [0.6, 0.7, 0.8],
+      omega: [0.0, 0.0, 0.0, 1.0],
+      trbf_center: 0.2,
+      trbf_scale: 1.0,
+      base_color: [0.1, 0.2, 0.3]
+    )
+
+    direct = ThreeDgcViewer::Gaussian.pack_4d(
+      position: gaussian.position,
+      opacity: gaussian.opacity,
+      scale: gaussian.scale,
+      rotation: gaussian.rotation,
+      motion_0: gaussian.motion_0,
+      motion_1: gaussian.motion_1,
+      motion_2: gaussian.motion_2,
+      omega: gaussian.omega,
+      trbf_center: gaussian.trbf_center,
+      trbf_scale: gaussian.trbf_scale,
+      base_color: gaussian.base_color
+    )
+
+    expect(direct).to eq(gaussian.pack)
   end
 
   it "packs SceneUniform to 224 bytes" do

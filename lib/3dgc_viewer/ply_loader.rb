@@ -393,16 +393,20 @@ module ThreeDgcViewer
           next
         end
 
-        item = Gaussian::Gaussian3d.new(
-          position: position,
-          opacity: opacity,
-          scale: scale,
-          rotation: rotation,
-          sh: sh
-        )
         statistics.record(position: position, opacity: opacity, scale: scale)
-        items << item if items
-        packed << item.pack
+        if items
+          item = Gaussian::Gaussian3d.new(
+            position: position,
+            opacity: opacity,
+            scale: scale,
+            rotation: rotation,
+            sh: sh
+          )
+          items << item
+          packed << item.pack
+        else
+          packed << Gaussian.pack_3d(position: position, opacity: opacity, scale: scale, rotation: rotation, sh: sh)
+        end
       end
 
       gaussian_set(:gaussian3d, items, packed, statistics, header)
@@ -450,22 +454,41 @@ module ThreeDgcViewer
           next
         end
 
-        item = Gaussian::Gaussian4d.new(
-          position: position,
-          opacity: opacity,
-          scale: scale,
-          rotation: rotation,
-          motion_0: motion[0, 3],
-          motion_1: motion[3, 3],
-          motion_2: motion[6, 3],
-          omega: omega,
-          trbf_center: trbf_center,
-          trbf_scale: trbf_scale,
-          base_color: base_color
-        )
+        motion_0 = motion[0, 3]
+        motion_1 = motion[3, 3]
+        motion_2 = motion[6, 3]
         statistics.record(position: position, opacity: opacity, scale: scale)
-        items << item if items
-        packed << item.pack
+        if items
+          item = Gaussian::Gaussian4d.new(
+            position: position,
+            opacity: opacity,
+            scale: scale,
+            rotation: rotation,
+            motion_0: motion_0,
+            motion_1: motion_1,
+            motion_2: motion_2,
+            omega: omega,
+            trbf_center: trbf_center,
+            trbf_scale: trbf_scale,
+            base_color: base_color
+          )
+          items << item
+          packed << item.pack
+        else
+          packed << Gaussian.pack_4d(
+            position: position,
+            opacity: opacity,
+            scale: scale,
+            rotation: rotation,
+            motion_0: motion_0,
+            motion_1: motion_1,
+            motion_2: motion_2,
+            omega: omega,
+            trbf_center: trbf_center,
+            trbf_scale: trbf_scale,
+            base_color: base_color
+          )
+        end
       end
 
       gaussian_set(:gaussian4d, items, packed, statistics, header)
