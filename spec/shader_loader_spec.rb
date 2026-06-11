@@ -13,6 +13,23 @@ RSpec.describe ThreeDgcViewer::ShaderLoader do
     end
   end
 
+  it "can disable and clear the shader source cache for development reloads" do
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "test.wgsl")
+      File.write(path, "first")
+      cached = described_class.new(nil, shader_dir: dir)
+      uncached = described_class.new(nil, shader_dir: dir, cache_sources: false)
+
+      expect(cached.source("test.wgsl")).to eq("first")
+      File.write(path, "second")
+      expect(cached.source("test.wgsl")).to eq("first")
+      expect(cached.reload!.source("test.wgsl")).to eq("second")
+      expect(uncached.source("test.wgsl")).to eq("second")
+      File.write(path, "third")
+      expect(uncached.source("test.wgsl")).to eq("third")
+    end
+  end
+
   it "rejects paths outside the shader directory" do
     Dir.mktmpdir do |dir|
       loader = described_class.new(nil, shader_dir: dir)

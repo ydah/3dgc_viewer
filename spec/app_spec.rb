@@ -82,6 +82,7 @@ RSpec.describe ThreeDgcViewer::App do
       --quality fast
       --low-vram
       --max-gaussians 123
+      --shader-dev
       --watch
       --benchmark 3
       --frame-sequence-count 4
@@ -116,6 +117,7 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.quality).to eq(:fast)
     expect(options.low_vram).to eq(true)
     expect(options.max_gaussians).to eq(123)
+    expect(options.shader_dev).to eq(true)
     expect(options.watch).to eq(true)
     expect(options.benchmark).to eq(3)
     expect(options.screenshot).to eq(screenshot.path)

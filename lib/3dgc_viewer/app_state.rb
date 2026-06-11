@@ -20,6 +20,10 @@ module ThreeDgcViewer
   class AppState
     GPU_MEMORY_WARNING_BYTES = 4 * 1024 * 1024 * 1024
     DEFAULT_TURNTABLE_SPEED = 15.0
+    PASS_IVARS = %i[
+      @preprocess_pass @prefix_scan_pass @duplicate_pass @radix_sort_pass
+      @tile_range_pass @tile_render_pass @screen_blit_pass @axis_pass
+    ].freeze
 
     attr_reader :window, :scene_type, :resources, :camera, :scene_uniform, :show_axis, :recent_files,
                 :render_width, :render_height, :time_speed, :time_range, :time_paused,
@@ -35,7 +39,7 @@ module ThreeDgcViewer
                    brightness: 0.0, contrast: 1.0, opacity_threshold: 0.0, scale_multiplier: 1.0,
                    sh_degree: PlyLoader::MAX_SH_DEGREE,
                    max_gaussians: PlyLoader::MAX_VERTEX_COUNT,
-                   watch_files: false, pair_capacity_factor: 32, recent_files_store: nil)
+                   shader_dev: false, watch_files: false, pair_capacity_factor: 32, recent_files_store: nil)
       @window = window
       @logger = logger
       @show_axis = show_axis
@@ -52,6 +56,7 @@ module ThreeDgcViewer
       @recent_files_store = recent_files_store
       @sh_degree = PlyLoader.validate_sh_degree(sh_degree)
       @max_gaussians = PlyLoader.validate_max_vertex_count(max_gaussians)
+      @shader_dev = shader_dev
       @render_width = positive_int(render_width)
       @render_height = positive_int(render_height)
       sync_render_size_to_window if @follow_window_render_size
@@ -280,9 +285,8 @@ module ThreeDgcViewer
 
       @released = true
       release_completed_pair_overflow_readback
+      release_passes
       [
-        @preprocess_pass, @prefix_scan_pass, @duplicate_pass, @radix_sort_pass,
-        @tile_range_pass, @tile_render_pass, @screen_blit_pass, @axis_pass,
         @scene_uniform_buffer, @render_texture_view, @render_texture_sampler,
         @render_texture, @depth_texture_view, @depth_texture, @surface,
         @queue, @device, @adapter, @instance
@@ -365,6 +369,8 @@ module ThreeDgcViewer
       case key
       when Window::Keymap::KEY_F
         fit_camera_to_scene(@scene_bounds)
+      when Window::Keymap::KEY_H
+        return reload_shaders
       when Window::Keymap::KEY_L
         return reload_scene
       when Window::Keymap::KEY_R
@@ -388,6 +394,22 @@ module ThreeDgcViewer
 
       handle_drop(@scene_path, max_pairs: @resources.max_pairs)
       true
+    end
+
+    def reload_shaders
+      return false unless @shader_dev && @device
+
+      shader_loader = ShaderLoader.new(@device, cache_sources: false)
+      passes = build_passes(shader_loader)
+      release_passes
+      @shader_loader = shader_loader
+      assign_passes(passes)
+      @scene_dirty = true
+      @logger.info("shaders reloaded")
+      true
+    rescue StandardError => e
+      @logger.error("shader reload failed: #{e.message}")
+      false
     end
 
     def reset_camera
@@ -660,42 +682,69 @@ module ThreeDgcViewer
     end
 
     def create_passes
-      @shader_loader = ShaderLoader.new(@device)
-      @preprocess_pass = Passes::PreprocessPass.new(
+      @shader_loader = ShaderLoader.new(@device, cache_sources: !@shader_dev)
+      assign_passes(build_passes(@shader_loader))
+    end
+
+    def build_passes(shader_loader)
+      passes = {}
+      passes[:preprocess] = Passes::PreprocessPass.new(
         device: @device,
         resources: @resources,
         scene_uniform_buffer: @scene_uniform_buffer,
         scene_type: @scene_type,
-        shader_loader: @shader_loader
+        shader_loader: shader_loader
       )
-      @prefix_scan_pass = Passes::PrefixScanPass.new(device: @device, resources: @resources, shader_loader: @shader_loader)
-      @duplicate_pass = Passes::DuplicatePass.new(device: @device, resources: @resources, shader_loader: @shader_loader)
-      @radix_sort_pass = Passes::RadixSortPass.new(device: @device, resources: @resources, shader_loader: @shader_loader)
-      @tile_range_pass = Passes::TileRangePass.new(device: @device, resources: @resources, shader_loader: @shader_loader)
-      @tile_render_pass = Passes::TileRenderPass.new(
+      passes[:prefix_scan] = Passes::PrefixScanPass.new(device: @device, resources: @resources, shader_loader: shader_loader)
+      passes[:duplicate] = Passes::DuplicatePass.new(device: @device, resources: @resources, shader_loader: shader_loader)
+      passes[:radix_sort] = Passes::RadixSortPass.new(device: @device, resources: @resources, shader_loader: shader_loader)
+      passes[:tile_range] = Passes::TileRangePass.new(device: @device, resources: @resources, shader_loader: shader_loader)
+      passes[:tile_render] = Passes::TileRenderPass.new(
         device: @device,
         resources: @resources,
         scene_uniform_buffer: @scene_uniform_buffer,
         render_texture_view: @render_texture_view,
-        shader_loader: @shader_loader
+        shader_loader: shader_loader
       )
-      @screen_blit_pass = Passes::ScreenBlitPass.new(
+      passes[:screen_blit] = Passes::ScreenBlitPass.new(
         device: @device,
         resources: @resources,
         render_texture_view: @render_texture_view,
         render_texture_sampler: @render_texture_sampler,
         surface_format: @surface_format,
         depth_format: :depth32_float,
-        shader_loader: @shader_loader
+        shader_loader: shader_loader
       )
-      @axis_pass = Passes::AxisPass.new(
+      passes[:axis] = Passes::AxisPass.new(
         device: @device,
         resources: @resources,
         scene_uniform_buffer: @scene_uniform_buffer,
         surface_format: @surface_format,
         axis_length: axis_length_for_bounds(@scene_bounds),
-        shader_loader: @shader_loader
+        shader_loader: shader_loader
       )
+      passes
+    rescue StandardError
+      passes.each_value { |pass| pass.release if pass.respond_to?(:release) }
+      raise
+    end
+
+    def assign_passes(passes)
+      @preprocess_pass = passes[:preprocess]
+      @prefix_scan_pass = passes[:prefix_scan]
+      @duplicate_pass = passes[:duplicate]
+      @radix_sort_pass = passes[:radix_sort]
+      @tile_range_pass = passes[:tile_range]
+      @tile_render_pass = passes[:tile_render]
+      @screen_blit_pass = passes[:screen_blit]
+      @axis_pass = passes[:axis]
+    end
+
+    def release_passes
+      PASS_IVARS.each do |ivar|
+        pass = instance_variable_get(ivar)
+        pass.release if pass.respond_to?(:release)
+      end
     end
 
     def axis_length_for_bounds(bounds)

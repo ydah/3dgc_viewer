@@ -26,6 +26,7 @@ module ThreeDgcViewer
       KEY_D = 68
       KEY_E = 69
       KEY_F = 70
+      KEY_H = 72
       KEY_L = 76
       KEY_Q = 81
       KEY_R = 82

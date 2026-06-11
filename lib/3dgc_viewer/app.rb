@@ -64,7 +64,7 @@ module ThreeDgcViewer
       :time, :time_speed, :time_range, :pause, :turntable_speed, :power_preference, :present_mode,
       :background_color, :exposure, :gamma, :brightness, :contrast,
       :opacity_threshold, :scale_multiplier, :sh_degree,
-      :watch, :quality, :low_vram, :json,
+      :shader_dev, :watch, :quality, :low_vram, :json,
       keyword_init: true
     )
 
@@ -135,6 +135,7 @@ module ThreeDgcViewer
         opacity_threshold: 0.0,
         scale_multiplier: 1.0,
         sh_degree: PlyLoader::MAX_SH_DEGREE,
+        shader_dev: false,
         watch: false,
         quality: :balanced,
         low_vram: false,
@@ -188,6 +189,7 @@ module ThreeDgcViewer
         opts.on("--opacity-threshold N", Float, "Cull splats below alpha threshold") { |value| options.opacity_threshold = value }
         opts.on("--scale-multiplier N", Float, "Global splat scale multiplier") { |value| options.scale_multiplier = value }
         opts.on("--sh-degree N", Integer, "3DGS spherical harmonics degree 0-3") { |value| options.sh_degree = value }
+        opts.on("--shader-dev", "Disable shader source cache and enable H reload shortcut") { options.shader_dev = true }
         opts.on("--quality PRESET", "fast/balanced/quality") { |value| options.quality = parse_quality(value) }
         opts.on("--low-vram", "Use smaller default GPU pair buffers") { options.low_vram = true }
         opts.on("--watch", "Reload the loaded file when it changes") { options.watch = true }
@@ -737,6 +739,7 @@ module ThreeDgcViewer
         scale_multiplier: @options.scale_multiplier,
         sh_degree: @options.sh_degree,
         max_gaussians: @options.max_gaussians,
+        shader_dev: @options.shader_dev,
         watch_files: @options.watch,
         pair_capacity_factor: pair_capacity_factor,
         recent_files_store: build_recent_files_store

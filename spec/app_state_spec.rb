@@ -146,6 +146,15 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(state.time_paused).to eq(false)
   end
 
+  it "reloads shader passes from the keyboard shortcut in shader dev mode" do
+    state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger, shader_dev: true)
+    state.instance_variable_set(:@device, Object.new)
+
+    expect do
+      state.handle_key(ThreeDgcViewer::Window::Keymap::KEY_H, ThreeDgcViewer::Window::GLFW::GLFW_PRESS)
+    end.not_to raise_error
+  end
+
   it "handles mouse orbit pan and scroll events" do
     state = described_class.new(FakeWindow.new(1280, 720))
     initial_eye = state.camera.eye

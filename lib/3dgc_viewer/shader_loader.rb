@@ -5,9 +5,12 @@ require_relative "library_locator"
 
 module ThreeDgcViewer
   class ShaderLoader
-    def initialize(device = nil, shader_dir: LibraryLocator.shader_dir)
+    attr_reader :cache_sources
+
+    def initialize(device = nil, shader_dir: LibraryLocator.shader_dir, cache_sources: true)
       @device = device
       @shader_dir = File.expand_path(shader_dir)
+      @cache_sources = cache_sources
       @source_cache = {}
     end
 
@@ -15,7 +18,14 @@ module ThreeDgcViewer
       path = shader_path(name)
       raise ShaderError, "shader not found: #{path}" unless File.file?(path)
 
+      return File.binread(path) unless @cache_sources
+
       @source_cache[name] ||= File.binread(path)
+    end
+
+    def reload!
+      @source_cache.clear
+      self
     end
 
     def module(name)
