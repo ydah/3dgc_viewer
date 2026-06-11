@@ -15,6 +15,13 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
     expect(gaussian.pack.bytesize).to eq(240)
   end
 
+  it "packs Gaussian sets without requiring retained objects when bytes are provided" do
+    bytes = "abc".b
+    set = ThreeDgcViewer::Gaussian::GaussianSet.new(kind: :gaussian3d, count: 1, packed_bytes: bytes)
+
+    expect(ThreeDgcViewer::Gaussian.pack_set(set)).to eq(bytes)
+  end
+
   it "packs Gaussian4d to 144 bytes" do
     gaussian = ThreeDgcViewer::Gaussian::Gaussian4d.new(
       position: [1.0, 2.0, 3.0],

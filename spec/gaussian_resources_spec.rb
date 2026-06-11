@@ -14,6 +14,7 @@ RSpec.describe ThreeDgcViewer::GaussianResources do
     expect(resources.tiles_height).to eq(45)
     expect(resources.tile_count).to eq(3600)
     expect(resources.buffer_specs.find { |spec| spec.name == :gaussian_buffer }.size).to eq(240)
+    expect(resources.estimated_buffer_bytes).to eq(resources.buffer_specs.sum(&:size))
   end
 
   it "derives resource sizes for a 4D scene" do

@@ -7,14 +7,15 @@ module ThreeDgcViewer
   class ShaderLoader
     def initialize(device = nil, shader_dir: LibraryLocator.shader_dir)
       @device = device
-      @shader_dir = shader_dir
+      @shader_dir = File.expand_path(shader_dir)
+      @source_cache = {}
     end
 
     def source(name)
-      path = File.join(@shader_dir, name)
+      path = shader_path(name)
       raise ShaderError, "shader not found: #{path}" unless File.file?(path)
 
-      File.binread(path)
+      @source_cache[name] ||= File.binread(path)
     end
 
     def module(name)
@@ -28,6 +29,15 @@ module ThreeDgcViewer
       end
 
       raise ShaderError, "device does not support WGSL shader module creation"
+    end
+
+    private
+
+    def shader_path(name)
+      path = File.expand_path(name, @shader_dir)
+      return path if path == @shader_dir || path.start_with?("#{@shader_dir}#{File::SEPARATOR}")
+
+      raise ShaderError, "shader path escapes shader directory: #{name}"
     end
   end
 end

@@ -12,7 +12,7 @@ module ThreeDgcViewer
                 :radix_num_workgroups, :radix_histogram_len,
                 :render_width, :render_height,
                 :tiles_width, :tiles_height, :tile_count,
-                :buffer_specs, :buffers
+                :buffer_specs, :buffers, :estimated_buffer_bytes
 
     def self.next_pair_capacity(required_pairs, current_max_pairs)
       required = [required_pairs.to_i, current_max_pairs.to_i + 1, 1].max
@@ -39,6 +39,7 @@ module ThreeDgcViewer
       @tiles_height = ceil_div(@render_height, Scene::TILE_H)
       @tile_count = @tiles_width * @tiles_height
       @buffer_specs = build_buffer_specs
+      @estimated_buffer_bytes = @buffer_specs.sum(&:size)
       @buffers = {}
       create_buffers if @device
     end

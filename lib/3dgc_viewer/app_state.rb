@@ -15,6 +15,8 @@ require_relative "window/glfw"
 
 module ThreeDgcViewer
   class AppState
+    GPU_MEMORY_WARNING_BYTES = 4 * 1024 * 1024 * 1024
+
     attr_reader :window, :scene_type, :resources, :camera, :scene_uniform,
                 :render_width, :render_height
 
@@ -86,6 +88,7 @@ module ThreeDgcViewer
       gaussian_set = PlyLoader.parse_file(path, retain_items: false)
       replace_gaussians(gaussian_set, max_pairs: max_pairs)
       @logger.info("loaded #{gaussian_set.kind} with #{gaussian_set.count} gaussians")
+      log_resource_estimate
       if gaussian_set.statistics.invalid_count.positive?
         @logger.warn("ignored #{gaussian_set.statistics.invalid_count} invalid gaussians")
       end
@@ -241,6 +244,25 @@ module ThreeDgcViewer
       @camera_controller.fit_scene_radius(bounds.radius)
       @camera_controller.sync_from_camera(@camera)
       @scene_uniform.update_camera(@camera)
+    end
+
+    def log_resource_estimate
+      bytes = @resources.estimated_buffer_bytes
+      level = bytes > GPU_MEMORY_WARNING_BYTES ? :warn : :info
+      @logger.public_send(level, "GPU buffer estimate: #{format_bytes(bytes)}")
+    end
+
+    def format_bytes(bytes)
+      units = %w[B KiB MiB GiB TiB]
+      value = bytes.to_f
+      unit = units.first
+      units.each do |candidate|
+        unit = candidate
+        break if value < 1024.0 || candidate == units.last
+
+        value /= 1024.0
+      end
+      "#{value.round(1)} #{unit}"
     end
 
     def sync_render_size_to_window

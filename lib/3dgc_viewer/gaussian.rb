@@ -116,7 +116,7 @@ module ThreeDgcViewer
     def pack_set(gaussian_set)
       return gaussian_set.packed_bytes.b if gaussian_set.packed_bytes
 
-      gaussian_set.items.map(&:pack).join.b
+      gaussian_set.items.each_with_object(+"".b) { |item, buffer| buffer << item.pack }
     end
 
     def item_size(kind)
