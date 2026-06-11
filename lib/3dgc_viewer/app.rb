@@ -6,6 +6,7 @@ require "json"
 require "time"
 require_relative "app_state"
 require_relative "camera_preset"
+require_relative "controls_help"
 require_relative "ply_loader"
 require_relative "version"
 require_relative "window/glfw"
@@ -48,7 +49,7 @@ module ThreeDgcViewer
     Options = Struct.new(
       :file, :width, :height, :log_level, :wgpu_native, :glfw, :show_axis,
       :render_width, :render_height, :render_scale, :render_size_window,
-      :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info,
+      :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info, :print_controls,
       :camera_preset, :save_camera_preset,
       :log_json, :debug_errors,
       :hidden, :smoke_frame, :smoke_resize,
@@ -83,6 +84,7 @@ module ThreeDgcViewer
         validate_ply: false,
         print_scene_info: false,
         print_gpu_info: false,
+        print_controls: false,
         camera_preset: nil,
         save_camera_preset: nil,
         log_json: false,
@@ -184,6 +186,7 @@ module ThreeDgcViewer
         opts.on("--validate-ply", "Parse --file and exit") { options.validate_ply = true }
         opts.on("--print-scene-info", "Print parsed scene statistics and exit") { options.print_scene_info = true }
         opts.on("--print-gpu-info", "Print GPU/native library locator information and exit") { options.print_gpu_info = true }
+        opts.on("--print-controls", "Print keyboard and mouse controls and exit") { options.print_controls = true }
         opts.on("--version", "Print version") do
           puts VERSION
           exit 0
@@ -423,6 +426,7 @@ module ThreeDgcViewer
       return validate_ply if @options.validate_ply
       return print_scene_info if @options.print_scene_info
       return print_gpu_info if @options.print_gpu_info
+      return print_controls if @options.print_controls
       return save_camera_preset if @options.save_camera_preset
 
       @options.window_only ? run_window_only : run_native
@@ -476,6 +480,13 @@ module ThreeDgcViewer
       print_location("glfw", LibraryLocator.glfw_location)
       print_location("surface_shim", LibraryLocator.surface_shim_location)
       puts "shader_dir: #{LibraryLocator.shader_dir}"
+      0
+    end
+
+    def print_controls
+      return puts_json(ControlsHelp.entries) if @options.json
+
+      puts ControlsHelp.text
       0
     end
 

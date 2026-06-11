@@ -262,6 +262,13 @@ RSpec.describe ThreeDgcViewer::App do
     expect(data).to include("platform", "wgpu_native", "glfw", "surface_shim")
   end
 
+  it "prints controls without initializing the window" do
+    output = capture_stdout { described_class.run(%w[--print-controls --json]) }
+    data = JSON.parse(output)
+
+    expect(data).to include(include("keys" => "F", "action" => "Fit view to scene"))
+  end
+
   it "can write logs as JSON lines" do
     stderr = nil
     capture_stdout do
