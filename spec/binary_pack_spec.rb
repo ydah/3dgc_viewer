@@ -146,4 +146,11 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
     expect(described_class.u32([1, 2, 3])).to eq([1, 2, 3].pack("L<*").b)
     expect(described_class.f32([[1.0, 2.0], [3.0]])).to eq([1.0, 2.0, 3.0].pack("e*").b)
   end
+
+  it "concatenates chunks into a binary string" do
+    result = described_class.concat("ab".b, "cd".b)
+
+    expect(result).to eq("abcd".b)
+    expect(result.encoding).to eq(Encoding::BINARY)
+  end
 end

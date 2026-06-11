@@ -17,7 +17,9 @@ module ThreeDgcViewer
     end
 
     def concat(*chunks)
-      chunks.join.b
+      buffer = String.new(capacity: chunks.sum(&:bytesize), encoding: Encoding::BINARY)
+      chunks.each { |chunk| buffer << chunk }
+      buffer
     end
 
     def pack_values(values, directive)
