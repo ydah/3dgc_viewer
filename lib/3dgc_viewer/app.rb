@@ -52,7 +52,8 @@ module ThreeDgcViewer
       :screenshot, :benchmark,
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :pause, :power_preference, :present_mode,
-      :background_color, :exposure, :gamma,
+      :background_color, :exposure, :gamma, :brightness, :contrast,
+      :opacity_threshold, :scale_multiplier,
       :watch, :quality, :low_vram, :json,
       keyword_init: true
     )
@@ -99,6 +100,10 @@ module ThreeDgcViewer
         background_color: [0.0, 0.0, 0.0, 1.0],
         exposure: 1.0,
         gamma: 1.0,
+        brightness: 0.0,
+        contrast: 1.0,
+        opacity_threshold: 0.0,
+        scale_multiplier: 1.0,
         watch: false,
         quality: :balanced,
         low_vram: false,
@@ -137,6 +142,10 @@ module ThreeDgcViewer
         opts.on("--background-color COLOR", "#rrggbb, #rrggbbaa, or r,g,b[,a]") { |value| options.background_color = parse_color(value) }
         opts.on("--exposure N", Float, "Render exposure multiplier") { |value| options.exposure = value }
         opts.on("--gamma N", Float, "Output gamma") { |value| options.gamma = value }
+        opts.on("--brightness N", Float, "Output brightness offset") { |value| options.brightness = value }
+        opts.on("--contrast N", Float, "Output contrast multiplier") { |value| options.contrast = value }
+        opts.on("--opacity-threshold N", Float, "Cull splats below alpha threshold") { |value| options.opacity_threshold = value }
+        opts.on("--scale-multiplier N", Float, "Global splat scale multiplier") { |value| options.scale_multiplier = value }
         opts.on("--quality PRESET", "fast/balanced/quality") { |value| options.quality = parse_quality(value) }
         opts.on("--low-vram", "Use smaller default GPU pair buffers") { options.low_vram = true }
         opts.on("--watch", "Reload the loaded file when it changes") { options.watch = true }
@@ -286,6 +295,11 @@ module ThreeDgcViewer
     def self.validate_tone_options(options)
       raise OptionParser::InvalidArgument, "--exposure must be positive" unless options.exposure.to_f.positive?
       raise OptionParser::InvalidArgument, "--gamma must be positive" unless options.gamma.to_f.positive?
+      raise OptionParser::InvalidArgument, "--brightness must be finite" unless options.brightness.to_f.finite?
+      raise OptionParser::InvalidArgument, "--contrast must be positive" unless options.contrast.to_f.positive?
+      threshold = options.opacity_threshold.to_f
+      raise OptionParser::InvalidArgument, "--opacity-threshold must be from 0 to 1" unless threshold.finite? && threshold >= 0.0 && threshold <= 1.0
+      raise OptionParser::InvalidArgument, "--scale-multiplier must be positive" unless options.scale_multiplier.to_f.positive?
     end
 
     def self.validate_file(path)
@@ -460,6 +474,10 @@ module ThreeDgcViewer
         background_color: @options.background_color,
         exposure: @options.exposure,
         gamma: @options.gamma,
+        brightness: @options.brightness,
+        contrast: @options.contrast,
+        opacity_threshold: @options.opacity_threshold,
+        scale_multiplier: @options.scale_multiplier,
         watch_files: @options.watch,
         pair_capacity_factor: pair_capacity_factor
       )

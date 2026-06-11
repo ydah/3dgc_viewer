@@ -28,6 +28,7 @@ module ThreeDgcViewer
                    initial_time: 0.0, time_speed: Scene::TIME_SPEED, time_paused: false,
                    power_preference: :high_performance, present_mode: nil,
                    background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0,
+                   brightness: 0.0, contrast: 1.0, opacity_threshold: 0.0, scale_multiplier: 1.0,
                    watch_files: false, pair_capacity_factor: 32)
       @window = window
       @logger = logger
@@ -67,7 +68,11 @@ module ThreeDgcViewer
         screen_height: @render_height,
         background_color: background_color,
         exposure: exposure,
-        gamma: gamma
+        gamma: gamma,
+        brightness: brightness,
+        contrast: contrast,
+        opacity_threshold: opacity_threshold,
+        scale_multiplier: scale_multiplier
       )
       @scene_uniform.update_camera(@camera)
       @scene_uniform.set_time(initial_time)

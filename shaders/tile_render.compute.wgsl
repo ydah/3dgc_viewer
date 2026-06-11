@@ -15,6 +15,7 @@ struct SceneUniform {
     background_color: vec4<f32>,
     exposure_gamma: vec2<f32>,
     _pad1: vec2<u32>,
+    render_options: vec4<f32>,
 };
 
 struct PreprocessOutput {
@@ -64,7 +65,10 @@ var<workgroup> sh_color: array<vec3<f32>, 256>;
 fn apply_tone(color: vec3<f32>) -> vec3<f32> {
     let exposure = scene.exposure_gamma.x;
     let gamma = scene.exposure_gamma.y;
-    return pow(max(color * exposure, vec3<f32>(0.0)), vec3<f32>(1.0 / gamma));
+    let brightness = scene.render_options.x;
+    let contrast = scene.render_options.y;
+    let mapped = pow(max(color * exposure, vec3<f32>(0.0)), vec3<f32>(1.0 / gamma));
+    return clamp((mapped - vec3<f32>(0.5)) * contrast + vec3<f32>(0.5 + brightness), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
 @compute @workgroup_size(TILE_W, TILE_H, 1)

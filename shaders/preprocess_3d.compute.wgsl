@@ -48,6 +48,10 @@ struct SceneUniform {
     tan_fov: vec2<f32>,
     time: f32,
     pad: u32,
+    background_color: vec4<f32>,
+    exposure_gamma: vec2<f32>,
+    _pad1: vec2<u32>,
+    render_options: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -112,9 +116,10 @@ fn quat_to_mat3_wxyz(q_raw: vec4<f32>) -> mat3x3<f32> {
 
 fn compute_cov3d(scale_log: vec3<f32>, rotation_wxyz: vec4<f32>) -> mat3x3<f32> {
     // NOTE: The scale is stored as a log scale in PLY
-    let sx = exp(scale_log.x);
-    let sy = exp(scale_log.y);
-    let sz = exp(scale_log.z);
+    let scale_multiplier = scene.render_options.w;
+    let sx = exp(scale_log.x) * scale_multiplier;
+    let sy = exp(scale_log.y) * scale_multiplier;
+    let sz = exp(scale_log.z) * scale_multiplier;
 
     let R = quat_to_mat3_wxyz(rotation_wxyz);
 
@@ -326,6 +331,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         cov2d[0][0] * inv_det,
     );
     let opacity = sigmoid(gaussians[idx].opacity);
+    if opacity < scene.render_options.z {
+        return;
+    }
 
     let tr = 0.5 * (cov2d[0][0] + cov2d[1][1]);
     let disc = max(0.1, tr * tr - det_cov2d);
@@ -388,4 +396,3 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     );
     tiles_touched[visible_idx] = tiles_touched_count;
 }
-

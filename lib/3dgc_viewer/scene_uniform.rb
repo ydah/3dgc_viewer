@@ -7,10 +7,12 @@ require_relative "scene"
 module ThreeDgcViewer
   class SceneUniform
     attr_reader :view, :proj, :view_pos, :gaussian_count, :screen_size, :near_far,
-                :tan_fov, :time, :background_color, :exposure, :gamma
+                :tan_fov, :time, :background_color, :exposure, :gamma,
+                :brightness, :contrast, :opacity_threshold, :scale_multiplier
 
     def initialize(screen_width: Scene::SCREEN_WIDTH, screen_height: Scene::SCREEN_HEIGHT,
-                   background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0)
+                   background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0,
+                   brightness: 0.0, contrast: 1.0, opacity_threshold: 0.0, scale_multiplier: 1.0)
       @view = Math3D::Mat4.identity
       @proj = Math3D::Mat4.identity
       @view_pos = [0.0, 0.0, 0.0]
@@ -22,6 +24,10 @@ module ThreeDgcViewer
       @background_color = normalize_color(background_color)
       @exposure = exposure.to_f
       @gamma = gamma.to_f
+      @brightness = brightness.to_f
+      @contrast = contrast.to_f
+      @opacity_threshold = opacity_threshold.to_f
+      @scale_multiplier = scale_multiplier.to_f
     end
 
     def update_camera(camera)
@@ -62,7 +68,8 @@ module ThreeDgcViewer
         BinaryPack.u32(0),
         BinaryPack.f32(@background_color),
         BinaryPack.f32(@exposure, @gamma),
-        BinaryPack.u32(0, 0)
+        BinaryPack.u32(0, 0),
+        BinaryPack.f32(@brightness, @contrast, @opacity_threshold, @scale_multiplier)
       )
     end
 

@@ -65,6 +65,10 @@ RSpec.describe ThreeDgcViewer::App do
       --background-color #336699cc
       --exposure 1.5
       --gamma 2.2
+      --brightness 0.1
+      --contrast 1.2
+      --opacity-threshold 0.01
+      --scale-multiplier 0.75
       --quality fast
       --low-vram
       --watch
@@ -85,6 +89,10 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.background_color).to eq([0x33 / 255.0, 0x66 / 255.0, 0x99 / 255.0, 0xcc / 255.0])
     expect(options.exposure).to eq(1.5)
     expect(options.gamma).to eq(2.2)
+    expect(options.brightness).to eq(0.1)
+    expect(options.contrast).to eq(1.2)
+    expect(options.opacity_threshold).to eq(0.01)
+    expect(options.scale_multiplier).to eq(0.75)
     expect(options.quality).to eq(:fast)
     expect(options.low_vram).to eq(true)
     expect(options.watch).to eq(true)
@@ -118,6 +126,14 @@ RSpec.describe ThreeDgcViewer::App do
       .to raise_error(OptionParser::InvalidArgument, /exposure/)
     expect { described_class.parse_options(%w[--gamma 0]) }
       .to raise_error(OptionParser::InvalidArgument, /gamma/)
+    expect { described_class.parse_options(%w[--brightness NaN]) }
+      .to raise_error(OptionParser::InvalidArgument, /brightness/)
+    expect { described_class.parse_options(%w[--contrast 0]) }
+      .to raise_error(OptionParser::InvalidArgument, /contrast/)
+    expect { described_class.parse_options(%w[--opacity-threshold 1.1]) }
+      .to raise_error(OptionParser::InvalidArgument, /opacity-threshold/)
+    expect { described_class.parse_options(%w[--scale-multiplier 0]) }
+      .to raise_error(OptionParser::InvalidArgument, /scale-multiplier/)
   end
 
   it "rejects invalid quality presets" do
