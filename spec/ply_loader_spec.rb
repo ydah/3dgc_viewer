@@ -349,6 +349,32 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect { described_class.parse_bytes(bytes) }.to raise_error(ThreeDgcViewer::PlyError, /property list/)
   end
 
+  it "rejects oversized PLY headers" do
+    bytes = "ply\ncomment #{"x" * described_class::MAX_HEADER_BYTES}\n".b
+
+    expect { described_class.parse_bytes(bytes) }
+      .to raise_error(ThreeDgcViewer::PlyError, /header exceeds/)
+  end
+
+  it "rejects excessively long PLY property names" do
+    name = "x" * (described_class::MAX_PROPERTY_NAME_BYTES + 1)
+    bytes = "ply\nformat binary_little_endian 1.0\nelement vertex 1\nproperty float #{name}\nend_header\n"
+
+    expect { described_class.parse_bytes(bytes) }
+      .to raise_error(ThreeDgcViewer::PlyError, /property name is too long/)
+  end
+
+  it "rejects excessive PLY vertex property counts" do
+    header = +"ply\nformat binary_little_endian 1.0\nelement vertex 1\n"
+    (described_class::MAX_VERTEX_PROPERTIES + 1).times do |index|
+      header << "property float p_#{index}\n"
+    end
+    header << "end_header\n"
+
+    expect { described_class.parse_bytes(header.b) }
+      .to raise_error(ThreeDgcViewer::PlyError, /too many PLY vertex properties/)
+  end
+
   it "rejects truncated bodies" do
     properties = REQUIRED_3D.map { |name| ["float", name] }
     bytes = build_ply(properties, [Array.new(properties.length, 0.0)])
