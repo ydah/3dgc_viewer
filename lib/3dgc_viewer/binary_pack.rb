@@ -5,19 +5,32 @@ module ThreeDgcViewer
     module_function
 
     def f32(*values)
-      values.flatten.pack("e*").b
+      pack_values(values, "e*")
     end
 
     def u32(*values)
-      values.flatten.pack("L<*").b
+      pack_values(values, "L<*")
     end
 
     def i32(*values)
-      values.flatten.pack("l<*").b
+      pack_values(values, "l<*")
     end
 
     def concat(*chunks)
       chunks.join.b
+    end
+
+    def pack_values(values, directive)
+      if values.none? { |value| value.is_a?(Array) }
+        return values.pack(directive).b
+      end
+
+      if values.length == 1 && values.first.is_a?(Array)
+        array = values.first
+        return array.pack(directive).b if array.none? { |value| value.is_a?(Array) }
+      end
+
+      values.flatten.pack(directive).b
     end
   end
 end

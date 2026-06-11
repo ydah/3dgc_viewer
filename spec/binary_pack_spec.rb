@@ -141,4 +141,9 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
     expect(described_class.f32(1, 2, 3, 1, 0, 0).bytesize).to eq(24)
     expect(ThreeDgcViewer::Passes::AxisPass.vertex_bytes.bytesize).to eq(24 * 6)
   end
+
+  it "packs flat arrays and nested arrays with the same public API" do
+    expect(described_class.u32([1, 2, 3])).to eq([1, 2, 3].pack("L<*").b)
+    expect(described_class.f32([[1.0, 2.0], [3.0]])).to eq([1.0, 2.0, 3.0].pack("e*").b)
+  end
 end
