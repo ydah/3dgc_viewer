@@ -37,7 +37,10 @@ module ThreeDgcViewer
     def load
       return [] unless @path && File.file?(@path)
 
-      normalize(JSON.parse(File.read(@path)))
+      entries = JSON.parse(File.read(@path))
+      return [] unless entries.is_a?(Array)
+
+      normalize(entries)
     rescue JSON::ParserError, SystemCallError
       []
     end

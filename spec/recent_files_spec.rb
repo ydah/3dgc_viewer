@@ -39,6 +39,18 @@ RSpec.describe ThreeDgcViewer::RecentFiles do
     file&.unlink
   end
 
+  it "ignores non-array JSON history" do
+    file = Tempfile.new(["recent", ".json"])
+    file.write(JSON.generate("scene.ply" => true))
+    file.close
+
+    store = described_class.new(path: file.path)
+
+    expect(store.load).to eq([])
+  ensure
+    file&.unlink
+  end
+
   it "clears saved history" do
     file = Tempfile.new(["recent", ".json"])
     path = file.path
