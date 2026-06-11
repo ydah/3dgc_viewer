@@ -334,6 +334,26 @@ RSpec.describe ThreeDgcViewer::AppState do
     invalid&.unlink
   end
 
+  it "does not repeatedly reload the same failed watched file change" do
+    file = build_ply_file(".ply")
+    logger, output = string_logger
+    state = described_class.new(FakeWindow.new(1280, 720), logger: logger, watch_files: true)
+    state.handle_drop(file.path)
+    File.binwrite(file.path, "not a ply")
+    changed_at = Time.now + 10
+    File.utime(changed_at, changed_at, file.path)
+    state.instance_variable_set(:@scene_mtime, Time.at(0))
+
+    state.update
+    state.update
+
+    expect(state.resources.gaussian_count).to eq(1)
+    expect(state.instance_variable_get(:@scene_mtime)).to be > Time.at(0)
+    expect(output.string.scan("PLY load failed").length).to eq(1)
+  ensure
+    file&.unlink
+  end
+
   it "handles missing dropped files without raising" do
     missing = Tempfile.new(["missing", ".ply"])
     path = missing.path

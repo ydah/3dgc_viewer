@@ -180,8 +180,10 @@ module ThreeDgcViewer
       if gaussian_set.statistics.invalid_count.positive?
         @logger.warn("ignored #{gaussian_set.statistics.invalid_count} invalid gaussians")
       end
+      true
     rescue PlyError, SystemCallError => e
       @logger.error("PLY load failed: #{e.message}")
+      false
     end
 
     def resize(width, height)
@@ -408,8 +410,7 @@ module ThreeDgcViewer
     def reload_scene
       return false unless @scene_path
 
-      handle_drop(@scene_path, max_pairs: @resources.max_pairs)
-      true
+      handle_drop(@scene_path, max_pairs: @resources.max_pairs) == true
     end
 
     def reload_shaders
@@ -527,7 +528,7 @@ module ThreeDgcViewer
       return unless mtime && @scene_mtime && mtime > @scene_mtime
 
       @logger.info("detected file change; reloading #{@scene_path}")
-      reload_scene
+      @scene_mtime = mtime unless reload_scene
     end
 
     def safe_mtime(path)
