@@ -20,10 +20,12 @@ module ThreeDgcViewer
         create_pipelines if gpu_enabled?
       end
 
-      def encode(encoder, resources: @resources)
-        super
+      def encode(encoder, resources: @resources, clear_only: false)
+        super(encoder, resources: resources)
         if @clear_bundle
           encode_compute(encoder, @clear_bundle) { |pass| pass.dispatch_workgroups(ceil_div(resources.tile_count, 256), 1, 1) }
+          return if clear_only
+
           encode_compute(encoder, @range_bundle) { |pass| pass.dispatch_workgroups_indirect(resources.tile_range_dispatch_args_buffer, offset: 0) }
           return
         end
@@ -31,6 +33,8 @@ module ThreeDgcViewer
         return unless encoder.respond_to?(:dispatch_compute)
 
         encoder.dispatch_compute("clear_tile_ranges.compute.wgsl", ceil_div(resources.tile_count, 256), 1, 1)
+        return if clear_only
+
         encoder.dispatch_compute_indirect("tile_range.compute.wgsl", resources.tile_range_dispatch_args_buffer, 0) if encoder.respond_to?(:dispatch_compute_indirect)
       end
 

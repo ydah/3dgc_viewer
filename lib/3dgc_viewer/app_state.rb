@@ -837,13 +837,18 @@ module ThreeDgcViewer
       encoder = @device.create_command_encoder(label: "Frame Encoder")
 
       if @scene_dirty || Scene.dynamic?(@scene_type)
-        @preprocess_pass.encode(encoder)
-        @prefix_scan_pass.encode(encoder)
-        @duplicate_pass.encode(encoder)
-        @radix_sort_pass.encode(encoder)
-        @tile_range_pass.encode(encoder)
-        @tile_render_pass.encode(encoder)
-        tile_pipeline_ran = true
+        if @resources.gaussian_count.zero?
+          @tile_range_pass.encode(encoder, clear_only: true)
+          @tile_render_pass.encode(encoder)
+        else
+          @preprocess_pass.encode(encoder)
+          @prefix_scan_pass.encode(encoder)
+          @duplicate_pass.encode(encoder)
+          @radix_sort_pass.encode(encoder)
+          @tile_range_pass.encode(encoder)
+          @tile_render_pass.encode(encoder)
+          tile_pipeline_ran = true
+        end
         @scene_dirty = false
       end
 

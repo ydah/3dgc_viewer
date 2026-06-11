@@ -291,6 +291,83 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect { state.render }.not_to raise_error
   end
 
+  it "skips splat preprocessing for empty scenes while clearing the render target" do
+    encoder = Class.new do
+      def finish
+        :command_buffer
+      end
+    end.new
+    device = Class.new do
+      define_method(:initialize) { |encoder| @encoder = encoder }
+      define_method(:create_command_encoder) { |**_kwargs| @encoder }
+    end.new(encoder)
+    queue = Class.new do
+      attr_reader :submitted
+
+      def write_buffer(*); end
+
+      def submit(commands)
+        @submitted = commands
+      end
+    end.new
+    texture = Class.new do
+      def create_view
+        :frame_view
+      end
+
+      def release; end
+    end.new
+    surface = Class.new do
+      attr_reader :present_count
+
+      define_method(:initialize) { |texture| @texture = texture; @present_count = 0 }
+      define_method(:current_texture) { @texture }
+      define_method(:present) { @present_count += 1 }
+    end.new(texture)
+    pass = Class.new do
+      attr_reader :calls
+
+      def initialize
+        @calls = []
+      end
+
+      def encode(*args, **kwargs)
+        @calls << [args, kwargs]
+      end
+    end
+
+    state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger, show_axis: false)
+    preprocess = pass.new
+    prefix_scan = pass.new
+    duplicate = pass.new
+    radix_sort = pass.new
+    tile_range = pass.new
+    tile_render = pass.new
+    screen_blit = pass.new
+    state.instance_variable_set(:@queue, queue)
+    state.instance_variable_set(:@device, device)
+    state.instance_variable_set(:@surface, surface)
+    state.instance_variable_set(:@preprocess_pass, preprocess)
+    state.instance_variable_set(:@prefix_scan_pass, prefix_scan)
+    state.instance_variable_set(:@duplicate_pass, duplicate)
+    state.instance_variable_set(:@radix_sort_pass, radix_sort)
+    state.instance_variable_set(:@tile_range_pass, tile_range)
+    state.instance_variable_set(:@tile_render_pass, tile_render)
+    state.instance_variable_set(:@screen_blit_pass, screen_blit)
+
+    state.send(:render_gpu_frame)
+
+    expect(preprocess.calls).to be_empty
+    expect(prefix_scan.calls).to be_empty
+    expect(duplicate.calls).to be_empty
+    expect(radix_sort.calls).to be_empty
+    expect(tile_range.calls.first[1]).to include(clear_only: true)
+    expect(tile_render.calls.length).to eq(1)
+    expect(screen_blit.calls.length).to eq(1)
+    expect(surface.present_count).to eq(1)
+    expect(queue.submitted).to eq([:command_buffer])
+  end
+
   it "updates the window title after loading a file" do
     file = build_ply_file(".notply")
     window = FakeWindow.new(1280, 720)
