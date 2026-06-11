@@ -4,6 +4,7 @@ require "logger"
 require "optparse"
 require "json"
 require_relative "app_state"
+require_relative "camera_preset"
 require_relative "ply_loader"
 require_relative "version"
 require_relative "window/glfw"
@@ -47,6 +48,7 @@ module ThreeDgcViewer
       :file, :width, :height, :log_level, :wgpu_native, :glfw, :show_axis,
       :render_width, :render_height, :render_scale, :render_size_window,
       :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info,
+      :camera_preset, :save_camera_preset,
       :hidden, :smoke_frame, :smoke_resize,
       :smoke_camera, :assert_render_nonzero,
       :screenshot, :benchmark, :frame_sequence, :frame_sequence_count, :frame_sequence_step,
@@ -79,6 +81,8 @@ module ThreeDgcViewer
         validate_ply: false,
         print_scene_info: false,
         print_gpu_info: false,
+        camera_preset: nil,
+        save_camera_preset: nil,
         hidden: false,
         smoke_frame: false,
         smoke_resize: false,
@@ -131,6 +135,8 @@ module ThreeDgcViewer
         opts.on("--render-size-window", "Keep internal render size in sync with framebuffer size") { options.render_size_window = true }
         opts.on("--max-pairs N", Integer, "Initial pair buffer capacity") { |value| options.max_pairs = value }
         opts.on("--camera SPEC", "Camera eye:target:up, each as x,y,z") { |value| apply_camera_spec(options, value) }
+        opts.on("--camera-preset PATH", "Load initial camera from JSON preset") { |value| apply_camera_preset(options, value) }
+        opts.on("--save-camera-preset PATH", "Write the initial camera JSON preset and exit") { |value| options.save_camera_preset = value }
         opts.on("--eye X,Y,Z", "Initial camera eye") { |value| options.eye = parse_vec3(value, "--eye") }
         opts.on("--target X,Y,Z", "Initial camera target") { |value| options.target = parse_vec3(value, "--target") }
         opts.on("--up X,Y,Z", "Initial camera up vector") { |value| options.up = parse_vec3(value, "--up") }
@@ -195,7 +201,8 @@ module ThreeDgcViewer
       validate_time_options(options)
       validate_tone_options(options)
       validate_log_level(options.log_level)
-      validate_file(options.file) if options.file
+      validate_file(options.file, option_name: "--file") if options.file
+      validate_output_file("--save-camera-preset", options.save_camera_preset) if options.save_camera_preset
       validate_positive_int("--max-pairs", options.max_pairs) if options.max_pairs
       validate_positive_int("--benchmark", options.benchmark) if options.benchmark
       validate_screenshot_path(options.screenshot) if options.screenshot
@@ -211,6 +218,14 @@ module ThreeDgcViewer
       options.eye = parse_vec3(parts[0], "--camera eye")
       options.target = parse_vec3(parts[1], "--camera target")
       options.up = parse_vec3(parts[2], "--camera up")
+    end
+
+    def self.apply_camera_preset(options, path)
+      validate_file(path, option_name: "--camera-preset")
+      CameraPreset.apply_to_options(options, CameraPreset.load_file(path))
+      options.camera_preset = path
+    rescue ArgumentError => e
+      raise OptionParser::InvalidArgument, "--camera-preset #{e.message}"
     end
 
     def self.parse_vec3(value, name)
@@ -310,10 +325,19 @@ module ThreeDgcViewer
       raise OptionParser::InvalidArgument, "--scale-multiplier must be positive" unless options.scale_multiplier.to_f.positive?
     end
 
-    def self.validate_file(path)
-      raise OptionParser::InvalidArgument, "--file does not exist: #{path}" unless File.exist?(path)
-      raise OptionParser::InvalidArgument, "--file is not a regular file: #{path}" unless File.file?(path)
-      raise OptionParser::InvalidArgument, "--file is not readable: #{path}" unless File.readable?(path)
+    def self.validate_file(path, option_name:)
+      raise OptionParser::InvalidArgument, "#{option_name} does not exist: #{path}" unless File.exist?(path)
+      raise OptionParser::InvalidArgument, "#{option_name} is not a regular file: #{path}" unless File.file?(path)
+      raise OptionParser::InvalidArgument, "#{option_name} is not readable: #{path}" unless File.readable?(path)
+    end
+
+    def self.validate_output_file(option_name, path)
+      raise OptionParser::InvalidArgument, "#{option_name} must not be empty" if path.to_s.empty?
+
+      directory = File.dirname(path)
+      raise OptionParser::InvalidArgument, "#{option_name} directory does not exist: #{directory}" unless Dir.exist?(directory)
+      raise OptionParser::InvalidArgument, "#{option_name} directory is not writable: #{directory}" unless File.writable?(directory)
+      raise OptionParser::InvalidArgument, "#{option_name} file is not writable: #{path}" if File.exist?(path) && !File.writable?(path)
     end
 
     def self.validate_screenshot_path(path)
@@ -392,6 +416,7 @@ module ThreeDgcViewer
       return validate_ply if @options.validate_ply
       return print_scene_info if @options.print_scene_info
       return print_gpu_info if @options.print_gpu_info
+      return save_camera_preset if @options.save_camera_preset
 
       @options.window_only ? run_window_only : run_native
       0
@@ -444,6 +469,13 @@ module ThreeDgcViewer
       print_location("glfw", LibraryLocator.glfw_location)
       print_location("surface_shim", LibraryLocator.surface_shim_location)
       puts "shader_dir: #{LibraryLocator.shader_dir}"
+      0
+    end
+
+    def save_camera_preset
+      camera = build_initial_camera_for_size(@options.width, @options.height)
+      CameraPreset.write_file(@options.save_camera_preset, camera)
+      @logger.info("camera preset saved: #{@options.save_camera_preset}")
       0
     end
 
@@ -540,7 +572,11 @@ module ThreeDgcViewer
     end
 
     def build_initial_camera(window)
-      camera = Camera.default(width: window.width, height: window.height)
+      build_initial_camera_for_size(window.width, window.height)
+    end
+
+    def build_initial_camera_for_size(width, height)
+      camera = Camera.default(width: width, height: height)
       camera.eye = @options.eye if @options.eye
       camera.target = @options.target if @options.target
       camera.up = @options.up if @options.up

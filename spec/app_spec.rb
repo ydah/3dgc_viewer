@@ -51,12 +51,18 @@ RSpec.describe ThreeDgcViewer::App do
 
   it "parses camera and playback options" do
     screenshot = Tempfile.new(["frame", ".ppm"])
+    preset = Tempfile.new(["camera", ".json"])
+    preset.write(JSON.generate(
+      eye: [9.0, 8.0, 7.0],
+      target: [6.0, 5.0, 4.0],
+      up: [0.0, 1.0, 0.0],
+      fov: 55.0,
+      znear: 0.3,
+      zfar: 300.0
+    ))
+    preset.close
     screenshot.close
     options = described_class.parse_options(%w[
-      --camera 1,2,3:4,5,6:0,1,0
-      --fov 60
-      --znear 0.2
-      --zfar 200
       --time 0.25
       --time-speed 2.5
       --pause
@@ -76,14 +82,18 @@ RSpec.describe ThreeDgcViewer::App do
       --benchmark 3
       --frame-sequence-count 4
       --frame-sequence-step 0.25
-    ] + ["--screenshot", screenshot.path, "--frame-sequence", File.join(File.dirname(screenshot.path), "frame_%04d.pam")])
+    ] + [
+      "--camera-preset", preset.path,
+      "--screenshot", screenshot.path,
+      "--frame-sequence", File.join(File.dirname(screenshot.path), "frame_%04d.pam")
+    ])
 
-    expect(options.eye).to eq([1.0, 2.0, 3.0])
-    expect(options.target).to eq([4.0, 5.0, 6.0])
+    expect(options.eye).to eq([9.0, 8.0, 7.0])
+    expect(options.target).to eq([6.0, 5.0, 4.0])
     expect(options.up).to eq([0.0, 1.0, 0.0])
-    expect(options.fov).to eq(60.0)
-    expect(options.znear).to eq(0.2)
-    expect(options.zfar).to eq(200.0)
+    expect(options.fov).to eq(55.0)
+    expect(options.znear).to eq(0.3)
+    expect(options.zfar).to eq(300.0)
     expect(options.time).to eq(0.25)
     expect(options.time_speed).to eq(2.5)
     expect(options.pause).to eq(true)
@@ -106,6 +116,21 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.frame_sequence_step).to eq(0.25)
   ensure
     screenshot&.unlink
+    preset&.unlink
+  end
+
+  it "saves the initial camera preset and exits" do
+    preset = Tempfile.new(["camera", ".json"])
+    preset.close
+
+    result = described_class.run(["--save-camera-preset", preset.path, "--eye", "1,2,3", "--target", "4,5,6"])
+    data = JSON.parse(File.read(preset.path))
+
+    expect(result).to eq(0)
+    expect(data.fetch("eye")).to eq([1.0, 2.0, 3.0])
+    expect(data.fetch("target")).to eq([4.0, 5.0, 6.0])
+  ensure
+    preset&.unlink
   end
 
   it "rejects invalid log level" do
