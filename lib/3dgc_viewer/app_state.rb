@@ -17,7 +17,7 @@ module ThreeDgcViewer
   class AppState
     GPU_MEMORY_WARNING_BYTES = 4 * 1024 * 1024 * 1024
 
-    attr_reader :window, :scene_type, :resources, :camera, :scene_uniform,
+    attr_reader :window, :scene_type, :resources, :camera, :scene_uniform, :show_axis,
                 :render_width, :render_height
 
     def initialize(window, logger: Logger.new($stderr), show_axis: true,
@@ -33,6 +33,9 @@ module ThreeDgcViewer
       @is_surface_configured = false
       @scene_dirty = true
       @scene_type = :gaussian3d
+      @scene_bounds = Gaussian::Bounds.empty
+      @scene_label = nil
+      @last_fps = nil
       @resource_generation = 0
       @pair_overflow_readback = nil
       @last_update_time = monotonic_time
@@ -75,6 +78,7 @@ module ThreeDgcViewer
     def handle_key(key, action)
       pressed = action == Window::GLFW::GLFW_PRESS || action == Window::GLFW::GLFW_REPEAT
       return @window.request_close if key == Window::Keymap::KEY_ESCAPE && pressed
+      return if pressed && handle_shortcut(key)
 
       @scene_dirty = true if @camera_controller.handle_key(key, pressed)
     end
@@ -87,8 +91,10 @@ module ThreeDgcViewer
 
       gaussian_set = PlyLoader.parse_file(path, retain_items: false)
       replace_gaussians(gaussian_set, max_pairs: max_pairs)
+      @scene_label = File.basename(path)
       @logger.info("loaded #{gaussian_set.kind} with #{gaussian_set.count} gaussians")
       log_resource_estimate
+      update_window_title
       if gaussian_set.statistics.invalid_count.positive?
         @logger.warn("ignored #{gaussian_set.statistics.invalid_count} invalid gaussians")
       end
@@ -124,7 +130,9 @@ module ThreeDgcViewer
       now = monotonic_time
       return if now - @fps_timer < 5.0
 
-      @logger.info("fps: #{(@frame_count / (now - @fps_timer)).round(1)}")
+      @last_fps = (@frame_count / (now - @fps_timer)).round(1)
+      @logger.info("fps: #{@last_fps}")
+      update_window_title
       @frame_count = 0
       @fps_timer = now
     end
@@ -199,6 +207,7 @@ module ThreeDgcViewer
       end
 
       @scene_type = new_scene_type
+      @scene_bounds = gaussian_set.statistics.bounds
       fit_camera_to_scene(gaussian_set.statistics.bounds) if auto_fit
       @scene_uniform.update_gaussian_count(@resources.gaussian_count)
       @scene_uniform.update_screen_size(@render_width, @render_height)
@@ -217,6 +226,29 @@ module ThreeDgcViewer
         render_height: @render_height,
         max_pairs: max_pairs
       )
+    end
+
+    def handle_shortcut(key)
+      case key
+      when Window::Keymap::KEY_F
+        fit_camera_to_scene(@scene_bounds)
+      when Window::Keymap::KEY_R
+        reset_camera
+      when Window::Keymap::KEY_X
+        @show_axis = !@show_axis
+      else
+        return false
+      end
+
+      @scene_dirty = true
+      true
+    end
+
+    def reset_camera
+      @camera = Camera.default(width: @window.width, height: @window.height)
+      @camera_controller = CameraController.new
+      @camera_controller.sync_from_camera(@camera)
+      @scene_uniform.update_camera(@camera)
     end
 
     def resize_render_target(width, height)
@@ -263,6 +295,16 @@ module ThreeDgcViewer
         value /= 1024.0
       end
       "#{value.round(1)} #{unit}"
+    end
+
+    def update_window_title
+      return unless @window.respond_to?(:title=)
+
+      parts = ["3dgc_viewer"]
+      parts << @scene_label if @scene_label
+      parts << "#{@resources.gaussian_count} gaussians" if @resources
+      parts << "#{@last_fps} FPS" if @last_fps
+      @window.title = parts.join(" - ")
     end
 
     def sync_render_size_to_window

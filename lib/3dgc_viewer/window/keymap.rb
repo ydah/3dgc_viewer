@@ -25,9 +25,12 @@ module ThreeDgcViewer
       KEY_C = 67
       KEY_D = 68
       KEY_E = 69
+      KEY_F = 70
       KEY_Q = 81
+      KEY_R = 82
       KEY_S = 83
       KEY_W = 87
+      KEY_X = 88
       KEY_Z = 90
       KEY_ESCAPE = 256
       KEY_RIGHT = 262
