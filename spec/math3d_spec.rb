@@ -12,6 +12,16 @@ RSpec.describe ThreeDgcViewer::Math3D do
     expect(matrix[14]).to be_within(1e-6).of(-1.0)
   end
 
+  it "keeps look-at matrices finite for degenerate camera vectors" do
+    coincident = described_class::Mat4.look_at_rh([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+    parallel_up = described_class::Mat4.look_at_rh([0.0, 0.0, 1.0], [0.0, 0.0, 0.0], [0.0, 0.0, -1.0])
+
+    expect(coincident).to all(be_finite)
+    expect(parallel_up).to all(be_finite)
+    expect(coincident[0, 3].any? { |value| value != 0.0 }).to eq(true)
+    expect(parallel_up[0, 3].any? { |value| value != 0.0 }).to eq(true)
+  end
+
   it "builds a perspective matrix with expected focal values" do
     matrix = described_class::Mat4.perspective_rh(Math::PI / 2.0, 2.0, 0.1, 100.0)
 

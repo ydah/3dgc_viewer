@@ -132,7 +132,15 @@ module ThreeDgcViewer
 
       def look_at_rh(eye, target, up)
         f = Vec3.normalize(Vec3.sub(target, eye))
+        f = [0.0, 0.0, -1.0] if Vec3.length(f) < EPSILON
+
+        up = Vec3.normalize(up)
+        up = [0.0, 1.0, 0.0] if Vec3.length(up) < EPSILON
         s = Vec3.normalize(Vec3.cross(f, up))
+        if Vec3.length(s) < EPSILON
+          fallback_up = f[1].abs < 0.9 ? [0.0, 1.0, 0.0] : [1.0, 0.0, 0.0]
+          s = Vec3.normalize(Vec3.cross(f, fallback_up))
+        end
         u = Vec3.cross(s, f)
 
         [
