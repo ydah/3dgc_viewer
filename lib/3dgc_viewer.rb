@@ -17,5 +17,6 @@ require_relative "3dgc_viewer/shader_loader"
 require_relative "3dgc_viewer/screenshot_writer"
 require_relative "3dgc_viewer/passes"
 require_relative "3dgc_viewer/app"
+require_relative "3dgc_viewer/renderer_api"
 
 WgpuGsViewer = ThreeDgcViewer unless defined?(WgpuGsViewer)
