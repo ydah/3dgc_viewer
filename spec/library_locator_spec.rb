@@ -22,6 +22,46 @@ RSpec.describe ThreeDgcViewer::LibraryLocator do
     file&.unlink
   end
 
+  it "uses the wgpu gem native library override when the low-level override is absent" do
+    file = Tempfile.new("libwgpu_native")
+    previous_native = ENV["WGPU_NATIVE_LIB"]
+    previous_gem = ENV["WGPU_LIB_PATH"]
+    ENV.delete("WGPU_NATIVE_LIB")
+    ENV["WGPU_LIB_PATH"] = file.path
+
+    location = described_class.wgpu_native_location
+
+    expect(location.path).to eq(file.path)
+    expect(location.source).to eq(:env)
+    expect(location.exists).to eq(true)
+  ensure
+    ENV["WGPU_NATIVE_LIB"] = previous_native
+    ENV["WGPU_LIB_PATH"] = previous_gem
+    file&.close
+    file&.unlink
+  end
+
+  it "prefers the low-level native library override over the wgpu gem override" do
+    native_file = Tempfile.new("libwgpu_native")
+    gem_file = Tempfile.new("libwgpu_native")
+    previous_native = ENV["WGPU_NATIVE_LIB"]
+    previous_gem = ENV["WGPU_LIB_PATH"]
+    ENV["WGPU_NATIVE_LIB"] = native_file.path
+    ENV["WGPU_LIB_PATH"] = gem_file.path
+
+    location = described_class.wgpu_native_location
+
+    expect(location.path).to eq(native_file.path)
+    expect(location.source).to eq(:env)
+  ensure
+    ENV["WGPU_NATIVE_LIB"] = previous_native
+    ENV["WGPU_LIB_PATH"] = previous_gem
+    native_file&.close
+    native_file&.unlink
+    gem_file&.close
+    gem_file&.unlink
+  end
+
   it "prefers common Windows GLFW dll names in vendored libraries" do
     previous = ENV["GLFW_LIB"]
     ENV.delete("GLFW_LIB")

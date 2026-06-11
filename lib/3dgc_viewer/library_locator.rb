@@ -48,7 +48,7 @@ module ThreeDgcViewer
 
     def wgpu_native_location
       locate(
-        env_key: "WGPU_NATIVE_LIB",
+        env_key: %w[WGPU_NATIVE_LIB WGPU_LIB_PATH],
         vendor_glob: File.join(root, "vendor", "wgpu-native", platform, "libwgpu_native.*"),
         fallback: fallback_library_name("wgpu_native")
       )
@@ -83,8 +83,10 @@ module ThreeDgcViewer
     end
 
     def locate(env_key:, vendor_glob:, fallback:)
-      env_path = ENV[env_key]
-      return location(env_path, :env) if env_path && !env_path.empty?
+      Array(env_key).each do |key|
+        env_path = ENV[key]
+        return location(env_path, :env) if env_path && !env_path.empty?
+      end
 
       vendor_path = Dir[vendor_glob].find { |path| File.file?(path) }
       return location(vendor_path, :vendor) if vendor_path
