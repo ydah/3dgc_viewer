@@ -24,6 +24,25 @@ module ThreeDgcViewer
     def projection_matrix
       Math3D::Mat4.perspective_rh(fovy * Math::PI / 180.0, aspect, znear, zfar)
     end
+
+    def fit_bounds(bounds, padding: 1.25)
+      return self if bounds.nil? || bounds.empty?
+
+      scene_center = bounds.center
+      scene_radius = bounds.radius * padding.to_f
+      half_fovy = (fovy * Math::PI / 180.0) * 0.5
+      half_fovx = Math.atan(Math.tan(half_fovy) * aspect.to_f)
+      fit_half_angle = [half_fovy, half_fovx].min
+      distance = scene_radius / Math.sin(fit_half_angle)
+      direction = Math3D::Vec3.normalize(Math3D::Vec3.sub(eye, target))
+      direction = [0.0, 0.0, 1.0] if Math3D::Vec3.length(direction) < Math3D::EPSILON
+
+      self.target = scene_center
+      self.eye = Math3D::Vec3.add(scene_center, Math3D::Vec3.mul_scalar(direction, distance))
+      self.znear = [distance - (scene_radius * 2.0), distance * 0.001, 0.001].max
+      self.zfar = [distance + (scene_radius * 2.0), znear * 2.0].max
+      self
+    end
   end
 
   class CameraController
@@ -31,8 +50,10 @@ module ThreeDgcViewer
 
     def initialize(speed: 1.0)
       @rotate_speed = speed * 0.25
+      @base_zoom_speed = speed
       @zoom_speed = speed
       @radius = 1.0
+      @scene_radius = 1.0
       @keys = {
         yaw_left: false,
         yaw_right: false,
@@ -47,6 +68,11 @@ module ThreeDgcViewer
 
     def sync_from_camera(camera)
       @radius = Math3D::Vec3.length(Math3D::Vec3.sub(camera.eye, camera.target))
+    end
+
+    def fit_scene_radius(radius)
+      @scene_radius = [radius.to_f, 0.01].max
+      @zoom_speed = @base_zoom_speed * @scene_radius
     end
 
     def handle_key(key, pressed)
@@ -86,7 +112,7 @@ module ThreeDgcViewer
         changed = true
       end
 
-      zoom = axis_value(:zoom_in, :zoom_out) * @zoom_speed * dt_sec
+      zoom = axis_value(:zoom_out, :zoom_in) * @zoom_speed * dt_sec
       if zoom != 0.0
         @radius = [@radius - zoom, 0.01].max
         offset = Math3D::Vec3.mul_scalar(Math3D::Vec3.normalize(offset), @radius)

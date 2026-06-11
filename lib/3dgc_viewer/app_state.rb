@@ -83,9 +83,12 @@ module ThreeDgcViewer
         return
       end
 
-      gaussian_set = PlyLoader.parse_file(path)
+      gaussian_set = PlyLoader.parse_file(path, retain_items: false)
       replace_gaussians(gaussian_set)
-      @logger.info("loaded #{gaussian_set.kind} with #{gaussian_set.items.length} gaussians")
+      @logger.info("loaded #{gaussian_set.kind} with #{gaussian_set.count} gaussians")
+      if gaussian_set.statistics.invalid_count.positive?
+        @logger.warn("ignored #{gaussian_set.statistics.invalid_count} invalid gaussians")
+      end
     rescue PlyError => e
       @logger.error("PLY parse failed: #{e.message}")
     end
@@ -165,7 +168,7 @@ module ThreeDgcViewer
       @resources&.release
     end
 
-    def replace_gaussians(gaussian_set, max_pairs: nil)
+    def replace_gaussians(gaussian_set, max_pairs: nil, auto_fit: true)
       @resources.release
       @resources = build_gaussian_resources(gaussian_set, max_pairs: max_pairs)
       @resource_generation += 1
@@ -193,6 +196,7 @@ module ThreeDgcViewer
       end
 
       @scene_type = new_scene_type
+      fit_camera_to_scene(gaussian_set.statistics.bounds) if auto_fit
       @scene_uniform.update_gaussian_count(@resources.gaussian_count)
       @scene_uniform.update_screen_size(@render_width, @render_height)
       @queue&.write_buffer(@scene_uniform_buffer, 0, @scene_uniform.pack) if @scene_uniform_buffer
@@ -226,8 +230,17 @@ module ThreeDgcViewer
       gaussian_set = @resources.gaussian_set
       max_pairs = @resources.max_pairs
       recreate_render_texture
-      replace_gaussians(gaussian_set, max_pairs: max_pairs)
+      replace_gaussians(gaussian_set, max_pairs: max_pairs, auto_fit: false)
       @logger.info("render size: #{@render_width}x#{@render_height}")
+    end
+
+    def fit_camera_to_scene(bounds)
+      return if bounds.nil? || bounds.empty?
+
+      @camera.fit_bounds(bounds)
+      @camera_controller.fit_scene_radius(bounds.radius)
+      @camera_controller.sync_from_camera(@camera)
+      @scene_uniform.update_camera(@camera)
     end
 
     def sync_render_size_to_window
@@ -422,7 +435,7 @@ module ThreeDgcViewer
         "sort_pair_count=#{sort_pair_count}, visible_count=#{visible_count}, " \
         "max_pairs=#{readback[:max_pairs]}; resizing to #{next_max_pairs}"
       )
-      replace_gaussians(@resources.gaussian_set, max_pairs: next_max_pairs)
+      replace_gaussians(@resources.gaussian_set, max_pairs: next_max_pairs, auto_fit: false)
       true
     rescue StandardError => e
       @logger.warn("pair overflow readback failed: #{e.message}")
