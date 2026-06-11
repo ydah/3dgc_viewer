@@ -71,4 +71,15 @@ RSpec.describe ThreeDgcViewer::CameraController do
     controller.sync_from_camera(camera)
     expect(controller.radius).to be < initial_radius
   end
+
+  it "applies turntable rotation around the camera target" do
+    camera = ThreeDgcViewer::Camera.default(width: 1280, height: 720)
+    controller = described_class.new
+    initial_eye = camera.eye
+
+    expect(controller.turntable(camera, Math::PI / 2.0)).to eq(:active)
+
+    expect(camera.eye).not_to eq(initial_eye)
+    expect(camera.target).to eq([0.0, 0.0, 0.0])
+  end
 end

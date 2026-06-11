@@ -179,6 +179,19 @@ module ThreeDgcViewer
       :active
     end
 
+    def turntable(camera, radians)
+      return :idle if radians.to_f.zero?
+
+      offset = Math3D::Vec3.sub(camera.eye, camera.target)
+      return :idle if Math3D::Vec3.length(offset) < Math3D::EPSILON
+
+      q = Math3D::Quat.from_axis_angle([0.0, 1.0, 0.0], radians.to_f)
+      camera.eye = Math3D::Vec3.add(camera.target, Math3D::Quat.rotate_vec3(q, offset))
+      camera.up = Math3D::Vec3.normalize(Math3D::Quat.rotate_vec3(q, camera.up))
+      sync_from_camera(camera)
+      :active
+    end
+
     private
 
     def orbit(camera, dx, dy)

@@ -60,7 +60,7 @@ module ThreeDgcViewer
       :smoke_camera, :assert_render_nonzero,
       :screenshot, :benchmark, :frame_sequence, :frame_sequence_count, :frame_sequence_step,
       :eye, :target, :up, :fov, :znear, :zfar,
-      :time, :time_speed, :pause, :power_preference, :present_mode,
+      :time, :time_speed, :pause, :turntable_speed, :power_preference, :present_mode,
       :background_color, :exposure, :gamma, :brightness, :contrast,
       :opacity_threshold, :scale_multiplier,
       :watch, :quality, :low_vram, :json,
@@ -119,6 +119,7 @@ module ThreeDgcViewer
         time: 0.0,
         time_speed: Scene::TIME_SPEED,
         pause: false,
+        turntable_speed: 0.0,
         power_preference: :high_performance,
         present_mode: nil,
         background_color: [0.0, 0.0, 0.0, 1.0],
@@ -167,6 +168,8 @@ module ThreeDgcViewer
         opts.on("--time T", Float, "Initial 4D scene time in [0, 1)") { |value| options.time = value }
         opts.on("--time-speed N", Float, "4D playback speed multiplier") { |value| options.time_speed = value }
         opts.on("--pause", "Start 4D playback paused") { options.pause = true }
+        opts.on("--turntable", "Enable turntable camera animation") { options.turntable_speed = AppState::DEFAULT_TURNTABLE_SPEED }
+        opts.on("--turntable-speed DEG_PER_SEC", Float, "Turntable camera speed in degrees per second") { |value| options.turntable_speed = value }
         opts.on("--power-preference VALUE", "high-performance/low-power") { |value| options.power_preference = parse_power_preference(value) }
         opts.on("--present-mode MODE", "fifo/mailbox/immediate") { |value| options.present_mode = parse_present_mode(value) }
         opts.on("--background-color COLOR", "#rrggbb, #rrggbbaa, or r,g,b[,a]") { |value| options.background_color = parse_color(value) }
@@ -359,6 +362,7 @@ module ThreeDgcViewer
     def self.validate_time_options(options)
       raise OptionParser::InvalidArgument, "--time must be finite" unless options.time.to_f.finite?
       raise OptionParser::InvalidArgument, "--time-speed must be finite" unless options.time_speed.to_f.finite?
+      raise OptionParser::InvalidArgument, "--turntable-speed must be finite" unless options.turntable_speed.to_f.finite?
     end
 
     def self.validate_tone_options(options)
@@ -648,6 +652,7 @@ module ThreeDgcViewer
         initial_time: @options.time,
         time_speed: @options.time_speed,
         time_paused: @options.pause,
+        turntable_speed: @options.turntable_speed,
         power_preference: @options.power_preference,
         present_mode: @options.present_mode,
         background_color: @options.background_color,

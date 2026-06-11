@@ -66,6 +66,7 @@ RSpec.describe ThreeDgcViewer::App do
       --time 0.25
       --time-speed 2.5
       --pause
+      --turntable-speed 30
       --power-preference low-power
       --present-mode mailbox
       --background-color #336699cc
@@ -97,6 +98,7 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.time).to eq(0.25)
     expect(options.time_speed).to eq(2.5)
     expect(options.pause).to eq(true)
+    expect(options.turntable_speed).to eq(30.0)
     expect(options.power_preference).to eq(:low_power)
     expect(options.present_mode).to eq(:mailbox)
     expect(options.background_color).to eq([0x33 / 255.0, 0x66 / 255.0, 0x99 / 255.0, 0.0])
@@ -205,6 +207,11 @@ RSpec.describe ThreeDgcViewer::App do
       .to raise_error(OptionParser::InvalidArgument, /opacity-threshold/)
     expect { described_class.parse_options(%w[--scale-multiplier 0]) }
       .to raise_error(OptionParser::InvalidArgument, /scale-multiplier/)
+  end
+
+  it "rejects invalid turntable speed" do
+    expect { described_class.parse_options(%w[--turntable-speed NaN]) }
+      .to raise_error(OptionParser::InvalidArgument, /turntable-speed/)
   end
 
   it "rejects invalid quality presets" do

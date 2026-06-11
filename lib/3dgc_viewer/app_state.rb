@@ -19,14 +19,16 @@ require_relative "window/glfw"
 module ThreeDgcViewer
   class AppState
     GPU_MEMORY_WARNING_BYTES = 4 * 1024 * 1024 * 1024
+    DEFAULT_TURNTABLE_SPEED = 15.0
 
     attr_reader :window, :scene_type, :resources, :camera, :scene_uniform, :show_axis, :recent_files,
-                :render_width, :render_height, :time_speed, :time_paused
+                :render_width, :render_height, :time_speed, :time_paused, :turntable_speed, :turntable_enabled
 
     def initialize(window, logger: Logger.new($stderr), show_axis: true,
                    render_width: Scene::SCREEN_WIDTH, render_height: Scene::SCREEN_HEIGHT,
                    follow_window_render_size: false, initial_camera: nil,
                    initial_time: 0.0, time_speed: Scene::TIME_SPEED, time_paused: false,
+                   turntable_speed: 0.0,
                    power_preference: :high_performance, present_mode: nil,
                    background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0,
                    brightness: 0.0, contrast: 1.0, opacity_threshold: 0.0, scale_multiplier: 1.0,
@@ -37,6 +39,8 @@ module ThreeDgcViewer
       @follow_window_render_size = follow_window_render_size
       @time_speed = time_speed.to_f
       @time_paused = time_paused
+      @turntable_speed = turntable_speed.to_f
+      @turntable_enabled = !@turntable_speed.zero?
       @power_preference = power_preference
       @requested_present_mode = present_mode
       @watch_files = watch_files
@@ -177,6 +181,7 @@ module ThreeDgcViewer
 
       reload_changed_scene if @watch_files
       @scene_dirty = true if @camera_controller.update_camera(@camera, dt) == :active
+      @scene_dirty = true if update_turntable(dt) == :active
       @scene_uniform.update_camera(@camera)
       @scene_uniform.update_gaussian_count(@resources.gaussian_count)
       @scene_uniform.update_time(dt, speed: @time_speed) if Scene.dynamic?(@scene_type) && !@time_paused
@@ -331,6 +336,8 @@ module ThreeDgcViewer
         return reload_scene
       when Window::Keymap::KEY_R
         reset_camera
+      when Window::Keymap::KEY_T
+        toggle_turntable
       when Window::Keymap::KEY_X
         @show_axis = !@show_axis
       else
@@ -353,6 +360,23 @@ module ThreeDgcViewer
       @camera_controller = CameraController.new
       @camera_controller.sync_from_camera(@camera)
       @scene_uniform.update_camera(@camera)
+    end
+
+    def toggle_turntable
+      if @turntable_speed.zero?
+        @turntable_speed = DEFAULT_TURNTABLE_SPEED
+        @turntable_enabled = true
+        return
+      end
+
+      @turntable_enabled = !@turntable_enabled
+    end
+
+    def update_turntable(dt)
+      return :idle unless @turntable_enabled && !@turntable_speed.zero?
+
+      radians = @turntable_speed * Math::PI / 180.0 * dt.to_f
+      @camera_controller.turntable(@camera, radians)
     end
 
     def copy_camera(camera)

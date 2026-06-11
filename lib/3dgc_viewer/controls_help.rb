@@ -13,6 +13,7 @@ module ThreeDgcViewer
       ["Mouse wheel or trackpad scroll", "Zoom camera"],
       ["F", "Fit view to scene"],
       ["R", "Reset camera"],
+      ["T", "Toggle turntable animation"],
       ["X", "Toggle axis overlay"],
       ["L", "Reload current file"]
     ].freeze
