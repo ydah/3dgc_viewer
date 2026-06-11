@@ -149,8 +149,8 @@ module ThreeDgcViewer
       if gaussian_set.statistics.invalid_count.positive?
         @logger.warn("ignored #{gaussian_set.statistics.invalid_count} invalid gaussians")
       end
-    rescue PlyError => e
-      @logger.error("PLY parse failed: #{e.message}")
+    rescue PlyError, SystemCallError => e
+      @logger.error("PLY load failed: #{e.message}")
     end
 
     def resize(width, height)

@@ -165,6 +165,36 @@ RSpec.describe ThreeDgcViewer::AppState do
     file&.unlink
   end
 
+  it "keeps the current scene when a dropped file fails to load" do
+    valid = build_ply_file(".ply")
+    invalid = Tempfile.new(["invalid", ".ply"])
+    invalid.write("not a ply")
+    invalid.close
+    window = FakeWindow.new(1280, 720)
+    state = described_class.new(window, logger: quiet_logger)
+    state.handle_drop(valid.path)
+    previous_title = window.title
+
+    state.handle_drop(invalid.path)
+
+    expect(state.resources.gaussian_count).to eq(1)
+    expect(state.recent_files.first).to eq(File.expand_path(valid.path))
+    expect(window.title).to eq(previous_title)
+  ensure
+    valid&.unlink
+    invalid&.unlink
+  end
+
+  it "handles missing dropped files without raising" do
+    missing = Tempfile.new(["missing", ".ply"])
+    path = missing.path
+    missing.close
+    missing.unlink
+    state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger)
+
+    expect { state.handle_drop(path) }.not_to raise_error
+  end
+
   it "releases owned GPU objects at most once" do
     object = Class.new do
       attr_reader :release_count
