@@ -111,8 +111,8 @@ module ThreeDgcViewer
       raise WgpuError, null_surface_message if surface_ptr.null?
 
       @surface = ::WGPU::Surface.new(surface_ptr, @instance)
-      @adapter = @instance.request_adapter(power_preference: @power_preference, compatible_surface: @surface)
-      @device = @adapter.request_device
+      @adapter = request_adapter!
+      @device = request_device!
       @queue = @device.queue
       @logger.info("Adapter: #{@adapter.info.inspect}") if @adapter.respond_to?(:info)
       configure_surface
@@ -687,6 +687,23 @@ module ThreeDgcViewer
     def create_passes
       @shader_loader = ShaderLoader.new(@device, cache_sources: !@shader_dev)
       assign_passes(build_passes(@shader_loader))
+    end
+
+    def request_adapter!
+      adapter = @instance.request_adapter(power_preference: @power_preference, compatible_surface: @surface)
+      return adapter if adapter
+
+      raise WgpuError,
+        "no suitable GPU adapter found for power_preference=#{@power_preference.inspect} " \
+        "on #{LibraryLocator.platform}"
+    end
+
+    def request_device!
+      device = @adapter.request_device
+      return device if device
+
+      details = @adapter.respond_to?(:info) ? " for adapter #{@adapter.info.inspect}" : ""
+      raise WgpuError, "failed to request GPU device#{details}"
     end
 
     def build_passes(shader_loader)

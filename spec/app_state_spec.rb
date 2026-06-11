@@ -103,6 +103,38 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(state.scene_uniform.time).to be_within(1e-9).of(0.35)
   end
 
+  it "reports missing GPU adapters as WgpuError" do
+    instance = Class.new do
+      def request_adapter(**_kwargs)
+        nil
+      end
+    end.new
+    state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger, power_preference: :low_power)
+    state.instance_variable_set(:@instance, instance)
+    state.instance_variable_set(:@surface, Object.new)
+    allow(ThreeDgcViewer::LibraryLocator).to receive(:platform).and_return("test-platform")
+
+    expect { state.send(:request_adapter!) }
+      .to raise_error(ThreeDgcViewer::WgpuError, /no suitable GPU adapter.*low_power.*test-platform/)
+  end
+
+  it "reports device request failures as WgpuError" do
+    adapter = Class.new do
+      def request_device
+        nil
+      end
+
+      def info
+        {name: "Test Adapter"}
+      end
+    end.new
+    state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger)
+    state.instance_variable_set(:@adapter, adapter)
+
+    expect { state.send(:request_device!) }
+      .to raise_error(ThreeDgcViewer::WgpuError, /failed to request GPU device.*Test Adapter/)
+  end
+
   it "handles fit reset and axis toggle shortcuts" do
     state = described_class.new(FakeWindow.new(1280, 720))
     bounds = ThreeDgcViewer::Gaussian::Bounds.new(
