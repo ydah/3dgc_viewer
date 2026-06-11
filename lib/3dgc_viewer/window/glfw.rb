@@ -118,6 +118,7 @@ module ThreeDgcViewer
         @width = width
         @height = height
         @callbacks = {}
+        @destroyed = false
 
         Native.glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API)
         Native.glfwWindowHint(GLFW_VISIBLE, visible ? GLFW_TRUE : GLFW_FALSE)
@@ -189,6 +190,9 @@ module ThreeDgcViewer
       end
 
       def destroy
+        return if @destroyed
+
+        @destroyed = true
         if @ptr && !@ptr.null?
           Native.glfwDestroyWindow(@ptr)
           @ptr = nil
@@ -205,35 +209,39 @@ module ThreeDgcViewer
 
       def install_callbacks
         @callbacks[:key] = FFI::Function.new(:void, [:pointer, :int, :int, :int, :int]) do |_window, key, _scancode, action, _mods|
-          @on_key&.call(key, action)
+          @on_key&.call(key, action) unless @destroyed
         end
         Native.glfwSetKeyCallback(@ptr, @callbacks[:key])
 
         @callbacks[:drop] = FFI::Function.new(:void, [:pointer, :int, :pointer]) do |_window, count, paths_ptr|
-          paths = count.times.map { |i| paths_ptr.get_pointer(i * FFI::Pointer.size).read_string }
-          @on_drop&.call(paths)
+          unless @destroyed
+            paths = count.times.map { |i| paths_ptr.get_pointer(i * FFI::Pointer.size).read_string }
+            @on_drop&.call(paths)
+          end
         end
         Native.glfwSetDropCallback(@ptr, @callbacks[:drop])
 
         @callbacks[:resize] = FFI::Function.new(:void, [:pointer, :int, :int]) do |_window, width, height|
-          @width = width
-          @height = height
-          @on_resize&.call(width, height)
+          unless @destroyed
+            @width = width
+            @height = height
+            @on_resize&.call(width, height)
+          end
         end
         Native.glfwSetFramebufferSizeCallback(@ptr, @callbacks[:resize])
 
         @callbacks[:cursor] = FFI::Function.new(:void, [:pointer, :double, :double]) do |_window, x, y|
-          @on_cursor&.call(x, y)
+          @on_cursor&.call(x, y) unless @destroyed
         end
         Native.glfwSetCursorPosCallback(@ptr, @callbacks[:cursor])
 
         @callbacks[:mouse_button] = FFI::Function.new(:void, [:pointer, :int, :int, :int]) do |_window, button, action, mods|
-          @on_mouse_button&.call(button, action, mods)
+          @on_mouse_button&.call(button, action, mods) unless @destroyed
         end
         Native.glfwSetMouseButtonCallback(@ptr, @callbacks[:mouse_button])
 
         @callbacks[:scroll] = FFI::Function.new(:void, [:pointer, :double, :double]) do |_window, x_offset, y_offset|
-          @on_scroll&.call(x_offset, y_offset)
+          @on_scroll&.call(x_offset, y_offset) unless @destroyed
         end
         Native.glfwSetScrollCallback(@ptr, @callbacks[:scroll])
       end

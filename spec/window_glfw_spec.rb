@@ -45,4 +45,36 @@ RSpec.describe ThreeDgcViewer::Window::GLFW do
     second.destroy
     expect(described_class.glfw_ref_count).to eq(0)
   end
+
+  it "ignores callbacks after destroy" do
+    ptr = FFI::MemoryPointer.new(:char)
+    native = described_class::Native
+    allow(native).to receive(:load!)
+    allow(native).to receive(:glfwInit).and_return(1)
+    allow(native).to receive(:glfwTerminate)
+    allow(native).to receive(:glfwWindowHint)
+    allow(native).to receive(:glfwCreateWindow).and_return(ptr)
+    allow(native).to receive(:glfwDestroyWindow)
+    allow(native).to receive(:glfwSetKeyCallback)
+    allow(native).to receive(:glfwSetDropCallback)
+    allow(native).to receive(:glfwSetFramebufferSizeCallback)
+    allow(native).to receive(:glfwSetCursorPosCallback)
+    allow(native).to receive(:glfwSetMouseButtonCallback)
+    allow(native).to receive(:glfwSetScrollCallback)
+    calls = []
+
+    window = described_class.new(width: 100, height: 100, title: "callbacks")
+    window.on_key { |key, action| calls << [:key, key, action] }
+    window.on_resize { |width, height| calls << [:resize, width, height] }
+    callbacks = window.instance_variable_get(:@callbacks)
+
+    callbacks[:key].call(ptr, 65, 0, described_class::GLFW_PRESS, 0)
+    window.destroy
+    callbacks[:key].call(ptr, 66, 0, described_class::GLFW_PRESS, 0)
+    callbacks[:resize].call(ptr, 320, 240)
+
+    expect(calls).to eq([[:key, 65, described_class::GLFW_PRESS]])
+    expect(window.width).to eq(100)
+    expect(window.height).to eq(100)
+  end
 end
