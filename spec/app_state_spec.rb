@@ -249,6 +249,14 @@ RSpec.describe ThreeDgcViewer::AppState do
       .to raise_error(ThreeDgcViewer::WgpuError, /readback size/)
   end
 
+  it "skips GPU rendering while the framebuffer is occluded" do
+    state = described_class.new(FakeWindow.new(0, 0), logger: quiet_logger)
+    state.instance_variable_set(:@is_surface_configured, true)
+    state.define_singleton_method(:render_gpu_frame) { raise "should not render" }
+
+    expect { state.render }.not_to raise_error
+  end
+
   it "updates the window title after loading a file" do
     file = build_ply_file(".notply")
     window = FakeWindow.new(1280, 720)

@@ -209,7 +209,7 @@ module ThreeDgcViewer
 
     def render
       frame_started = monotonic_time
-      if @is_surface_configured
+      if @is_surface_configured && framebuffer_visible?
         render_gpu_frame
         @frame_statistics.record(monotonic_time - frame_started)
       end
@@ -562,6 +562,13 @@ module ThreeDgcViewer
       width, height = @window.framebuffer_size
       @render_width = positive_int(width)
       @render_height = positive_int(height)
+    end
+
+    def framebuffer_visible?
+      width, height = @window.framebuffer_size
+      width.to_i.positive? && height.to_i.positive?
+    rescue SystemCallError
+      false
     end
 
     def align_copy_bytes_per_row(row_bytes)
