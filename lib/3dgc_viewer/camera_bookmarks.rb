@@ -38,7 +38,7 @@ module ThreeDgcViewer
 
       data = File.file?(path) && File.size(path).positive? ? load_raw_file(path) : {}
       data[name.to_s] = stringify_keys(CameraPreset.hash_from_camera(camera))
-      File.write(path, "#{JSON.pretty_generate(data)}\n")
+      CameraPreset.write_json_file(path, data)
     end
 
     def load_raw_file(path)

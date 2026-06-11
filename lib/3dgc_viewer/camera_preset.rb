@@ -53,7 +53,15 @@ module ThreeDgcViewer
     end
 
     def write_file(path, camera)
-      File.write(path, "#{JSON.pretty_generate(hash_from_camera(camera))}\n")
+      write_json_file(path, hash_from_camera(camera))
+    end
+
+    def write_json_file(path, data)
+      tmp_path = "#{path}.tmp"
+      File.write(tmp_path, "#{JSON.pretty_generate(data)}\n")
+      File.rename(tmp_path, path)
+    ensure
+      File.delete(tmp_path) if tmp_path && File.exist?(tmp_path)
     end
 
     def validate_vec3(value, field)
