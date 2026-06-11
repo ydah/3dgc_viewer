@@ -353,7 +353,7 @@ module ThreeDgcViewer
       skip_elements_before_vertex(header)
 
       items = @retain_items ? [] : nil
-      packed = +"".b
+      packed = Gaussian.packed_buffer(:gaussian3d, header.vertex_count)
       statistics = StatisticsBuilder.new
 
       header.vertex_count.times do |index|
@@ -418,7 +418,7 @@ module ThreeDgcViewer
       skip_elements_before_vertex(header)
 
       items = @retain_items ? [] : nil
-      packed = +"".b
+      packed = Gaussian.packed_buffer(:gaussian4d, header.vertex_count)
       statistics = StatisticsBuilder.new
 
       header.vertex_count.times do |index|

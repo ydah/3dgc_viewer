@@ -42,6 +42,14 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
     expect(ThreeDgcViewer::Gaussian.pack_set(set)).to eq(bytes)
   end
 
+  it "creates binary buffers for packed Gaussian output" do
+    buffer = ThreeDgcViewer::Gaussian.packed_buffer(:gaussian3d, 1)
+    buffer << "abc".b
+
+    expect(buffer.encoding).to eq(Encoding::BINARY)
+    expect(buffer).to eq("abc".b)
+  end
+
   it "packs Gaussian4d to 144 bytes" do
     gaussian = ThreeDgcViewer::Gaussian::Gaussian4d.new(
       position: [1.0, 2.0, 3.0],

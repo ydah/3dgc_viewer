@@ -9,6 +9,7 @@ module ThreeDgcViewer
     RADIX_SORT_BINS = 256
     RADIX_SORT_PASSES = 8
     MAX_RADIX_WORKGROUPS = 256
+    PACK_BUFFER_PREALLOC_LIMIT_BYTES = 64 * 1024 * 1024
 
     Bounds = Struct.new(:min, :max, keyword_init: true) do
       def self.empty
@@ -138,7 +139,14 @@ module ThreeDgcViewer
     def pack_set(gaussian_set)
       return gaussian_set.packed_bytes.b if gaussian_set.packed_bytes
 
-      gaussian_set.items.each_with_object(+"".b) { |item, buffer| buffer << item.pack }
+      buffer = packed_buffer(gaussian_set.kind, gaussian_set.count)
+      gaussian_set.items.each { |item| buffer << item.pack }
+      buffer
+    end
+
+    def packed_buffer(kind, count)
+      capacity = [count.to_i * item_size(kind), PACK_BUFFER_PREALLOC_LIMIT_BYTES].min
+      String.new(capacity: [capacity, 0].max, encoding: Encoding::BINARY)
     end
 
     def item_size(kind)
