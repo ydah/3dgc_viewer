@@ -6,7 +6,7 @@ module ThreeDgcViewer
                background_color: nil, transparent_background: false,
                exposure: nil, gamma: nil, brightness: nil, contrast: nil,
                opacity_threshold: nil, scale_multiplier: nil,
-               camera_preset: nil, assert_nonzero: false)
+               sh_degree: nil, camera_preset: nil, assert_nonzero: false)
       argv = ["--file", path.to_s, "--screenshot", output.to_s, "--hidden"]
       append_option(argv, "--width", width)
       append_option(argv, "--height", height)
@@ -20,6 +20,7 @@ module ThreeDgcViewer
       append_option(argv, "--contrast", contrast)
       append_option(argv, "--opacity-threshold", opacity_threshold)
       append_option(argv, "--scale-multiplier", scale_multiplier)
+      append_option(argv, "--sh-degree", sh_degree)
       append_option(argv, "--camera-preset", camera_preset)
       argv << "--assert-render-nonzero" if assert_nonzero
       App.run(argv)

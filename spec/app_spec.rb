@@ -77,6 +77,7 @@ RSpec.describe ThreeDgcViewer::App do
       --contrast 1.2
       --opacity-threshold 0.01
       --scale-multiplier 0.75
+      --sh-degree 1
       --quality fast
       --low-vram
       --watch
@@ -108,6 +109,7 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.contrast).to eq(1.2)
     expect(options.opacity_threshold).to eq(0.01)
     expect(options.scale_multiplier).to eq(0.75)
+    expect(options.sh_degree).to eq(1)
     expect(options.quality).to eq(:fast)
     expect(options.low_vram).to eq(true)
     expect(options.watch).to eq(true)
@@ -212,6 +214,11 @@ RSpec.describe ThreeDgcViewer::App do
   it "rejects invalid turntable speed" do
     expect { described_class.parse_options(%w[--turntable-speed NaN]) }
       .to raise_error(OptionParser::InvalidArgument, /turntable-speed/)
+  end
+
+  it "rejects invalid SH degree" do
+    expect { described_class.parse_options(%w[--sh-degree 4]) }
+      .to raise_error(OptionParser::InvalidArgument, /sh-degree/)
   end
 
   it "rejects invalid quality presets" do

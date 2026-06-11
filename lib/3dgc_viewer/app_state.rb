@@ -32,6 +32,7 @@ module ThreeDgcViewer
                    power_preference: :high_performance, present_mode: nil,
                    background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0,
                    brightness: 0.0, contrast: 1.0, opacity_threshold: 0.0, scale_multiplier: 1.0,
+                   sh_degree: PlyLoader::MAX_SH_DEGREE,
                    watch_files: false, pair_capacity_factor: 32, recent_files_store: nil)
       @window = window
       @logger = logger
@@ -46,6 +47,7 @@ module ThreeDgcViewer
       @watch_files = watch_files
       @pair_capacity_factor = pair_capacity_factor
       @recent_files_store = recent_files_store
+      @sh_degree = PlyLoader.validate_sh_degree(sh_degree)
       @render_width = positive_int(render_width)
       @render_height = positive_int(render_height)
       sync_render_size_to_window if @follow_window_render_size
@@ -148,7 +150,7 @@ module ThreeDgcViewer
     end
 
     def handle_drop(path, max_pairs: nil)
-      gaussian_set = PlyLoader.parse_file(path, retain_items: false)
+      gaussian_set = PlyLoader.parse_file(path, retain_items: false, sh_degree: @sh_degree)
       replace_gaussians(gaussian_set, max_pairs: max_pairs)
       @scene_path = path
       @scene_mtime = safe_mtime(path)

@@ -12,6 +12,8 @@ module ThreeDgcViewer
     MAX_VERTEX_STRIDE = 64 * 1024
     MAX_VERTEX_PROPERTIES = 512
     MAX_PROPERTY_NAME_BYTES = 256
+    MAX_SH_DEGREE = 3
+    SH_REST_COEFFICIENTS_PER_CHANNEL = 15
 
     REQUIRED_3DGS_FIELDS = %w[
       x y z opacity scale_0 scale_1 scale_2
@@ -76,32 +78,32 @@ module ThreeDgcViewer
       :properties, :property_map, :elements, :comments, :obj_info, keyword_init: true
     )
 
-    def self.parse_file(path, retain_items: true)
+    def self.parse_file(path, retain_items: true, sh_degree: MAX_SH_DEGREE)
       File.open(path, "rb") do |file|
         if gzip_io?(file)
           gzip = Zlib::GzipReader.new(file)
           begin
-            new(gzip, retain_items: retain_items).parse
+            new(gzip, retain_items: retain_items, sh_degree: sh_degree).parse
           ensure
             gzip.close
           end
         else
-          new(file, retain_items: retain_items).parse
+          new(file, retain_items: retain_items, sh_degree: sh_degree).parse
         end
       end
     end
 
-    def self.parse_bytes(bytes, retain_items: true)
+    def self.parse_bytes(bytes, retain_items: true, sh_degree: MAX_SH_DEGREE)
       io = StringIO.new(bytes.b)
       if gzip_io?(io)
         gzip = Zlib::GzipReader.new(io)
         begin
-          new(gzip, retain_items: retain_items).parse
+          new(gzip, retain_items: retain_items, sh_degree: sh_degree).parse
         ensure
           gzip.close
         end
       else
-        new(io, retain_items: retain_items).parse
+        new(io, retain_items: retain_items, sh_degree: sh_degree).parse
       end
     end
 
@@ -111,9 +113,17 @@ module ThreeDgcViewer
       magic == "\x1F\x8B".b
     end
 
-    def initialize(io, retain_items: true)
+    def initialize(io, retain_items: true, sh_degree: MAX_SH_DEGREE)
       @io = io
       @retain_items = retain_items
+      @sh_degree = self.class.validate_sh_degree(sh_degree)
+    end
+
+    def self.validate_sh_degree(value)
+      degree = Integer(value, exception: false)
+      raise ArgumentError, "SH degree must be an integer from 0 to #{MAX_SH_DEGREE}" unless degree && degree.between?(0, MAX_SH_DEGREE)
+
+      degree
     end
 
     def parse
@@ -339,7 +349,13 @@ module ThreeDgcViewer
           read(header, row, "f_dc_1", vertex_index: index),
           read(header, row, "f_dc_2", vertex_index: index)
         ]
-        45.times { |i| sh << read(header, row, "f_rest_#{i}", default: 0.0, vertex_index: index) }
+        45.times do |i|
+          sh << if keep_sh_rest_coefficient?(i)
+                  read(header, row, "f_rest_#{i}", default: 0.0, vertex_index: index)
+                else
+                  0.0
+                end
+        end
 
         position = [
           read(header, row, "x", vertex_index: index),
@@ -449,6 +465,11 @@ module ThreeDgcViewer
       raise PlyError, "missing required PLY vertex properties: #{missing.join(", ")}"
     end
 
+    def keep_sh_rest_coefficient?(rest_index)
+      harmonic_index = (rest_index % SH_REST_COEFFICIENTS_PER_CHANNEL) + 1
+      harmonic_index < ((@sh_degree + 1) * (@sh_degree + 1))
+    end
+
     def skip_elements_before_vertex(header)
       header.elements.each do |element|
         return if element.name == "vertex"
@@ -556,7 +577,7 @@ module ThreeDgcViewer
         count: count,
         packed_bytes: packed,
         statistics: statistics.to_statistics,
-        metadata: {comments: header.comments, obj_info: header.obj_info}
+        metadata: {comments: header.comments, obj_info: header.obj_info, sh_degree: @sh_degree}
       )
     end
 

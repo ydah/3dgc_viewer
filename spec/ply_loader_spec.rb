@@ -204,6 +204,25 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(item.sh[2]).to eq(0.0)
   end
 
+  it "limits parsed SH rest coefficients by degree" do
+    properties = REQUIRED_3D.map { |name| ["float", name] } +
+      45.times.map { |index| ["float", "f_rest_#{index}"] }
+    row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9] +
+      45.times.map { |index| (index + 1).to_f }
+
+    set = described_class.parse_bytes(build_ply(properties, [row]), sh_degree: 1)
+    sh = set.items.first.sh
+
+    expect(sh[3]).to eq(1.0)
+    expect(sh[5]).to eq(3.0)
+    expect(sh[6]).to eq(0.0)
+    expect(sh[18]).to eq(16.0)
+    expect(sh[21]).to eq(0.0)
+    expect(sh[33]).to eq(31.0)
+    expect(sh[36]).to eq(0.0)
+    expect(set.metadata[:sh_degree]).to eq(1)
+  end
+
   it "parses binary big-endian PLY" do
     properties = REQUIRED_3D.map { |name| ["float", name] }
     row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]

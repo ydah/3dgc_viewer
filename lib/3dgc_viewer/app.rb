@@ -62,7 +62,7 @@ module ThreeDgcViewer
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :pause, :turntable_speed, :power_preference, :present_mode,
       :background_color, :exposure, :gamma, :brightness, :contrast,
-      :opacity_threshold, :scale_multiplier,
+      :opacity_threshold, :scale_multiplier, :sh_degree,
       :watch, :quality, :low_vram, :json,
       keyword_init: true
     )
@@ -129,6 +129,7 @@ module ThreeDgcViewer
         contrast: 1.0,
         opacity_threshold: 0.0,
         scale_multiplier: 1.0,
+        sh_degree: PlyLoader::MAX_SH_DEGREE,
         watch: false,
         quality: :balanced,
         low_vram: false,
@@ -180,6 +181,7 @@ module ThreeDgcViewer
         opts.on("--contrast N", Float, "Output contrast multiplier") { |value| options.contrast = value }
         opts.on("--opacity-threshold N", Float, "Cull splats below alpha threshold") { |value| options.opacity_threshold = value }
         opts.on("--scale-multiplier N", Float, "Global splat scale multiplier") { |value| options.scale_multiplier = value }
+        opts.on("--sh-degree N", Integer, "3DGS spherical harmonics degree 0-3") { |value| options.sh_degree = value }
         opts.on("--quality PRESET", "fast/balanced/quality") { |value| options.quality = parse_quality(value) }
         opts.on("--low-vram", "Use smaller default GPU pair buffers") { options.low_vram = true }
         opts.on("--watch", "Reload the loaded file when it changes") { options.watch = true }
@@ -234,6 +236,7 @@ module ThreeDgcViewer
       validate_camera_options(options)
       validate_time_options(options)
       validate_tone_options(options)
+      validate_sh_options(options)
       validate_log_level(options.log_level)
       validate_file(options.file, option_name: "--file") if options.file
       validate_output_file("--save-camera-preset", options.save_camera_preset) if options.save_camera_preset
@@ -375,6 +378,12 @@ module ThreeDgcViewer
       raise OptionParser::InvalidArgument, "--scale-multiplier must be positive" unless options.scale_multiplier.to_f.positive?
     end
 
+    def self.validate_sh_options(options)
+      PlyLoader.validate_sh_degree(options.sh_degree)
+    rescue ArgumentError => e
+      raise OptionParser::InvalidArgument, "--sh-degree #{e.message}"
+    end
+
     def self.validate_file(path, option_name:)
       raise OptionParser::InvalidArgument, "#{option_name} does not exist: #{path}" unless File.exist?(path)
       raise OptionParser::InvalidArgument, "#{option_name} is not a regular file: #{path}" unless File.file?(path)
@@ -509,7 +518,7 @@ module ThreeDgcViewer
     def validate_ply
       raise PlyError, "--validate-ply requires --file" unless @options.file
 
-      gaussian_set = PlyLoader.parse_file(@options.file, retain_items: false)
+      gaussian_set = PlyLoader.parse_file(@options.file, retain_items: false, sh_degree: @options.sh_degree)
       return puts_json(scene_info_hash(gaussian_set, gaussian_set.statistics)) if @options.json
 
       @logger.info("valid PLY: #{gaussian_set.kind}, #{gaussian_set.count} gaussians")
@@ -519,7 +528,7 @@ module ThreeDgcViewer
     def print_scene_info
       raise PlyError, "--print-scene-info requires --file" unless @options.file
 
-      gaussian_set = PlyLoader.parse_file(@options.file, retain_items: false)
+      gaussian_set = PlyLoader.parse_file(@options.file, retain_items: false, sh_degree: @options.sh_degree)
       stats = gaussian_set.statistics
       return puts_json(scene_info_hash(gaussian_set, stats)) if @options.json
 
@@ -662,6 +671,7 @@ module ThreeDgcViewer
         contrast: @options.contrast,
         opacity_threshold: @options.opacity_threshold,
         scale_multiplier: @options.scale_multiplier,
+        sh_degree: @options.sh_degree,
         watch_files: @options.watch,
         pair_capacity_factor: pair_capacity_factor,
         recent_files_store: build_recent_files_store

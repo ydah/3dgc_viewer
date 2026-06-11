@@ -20,6 +20,7 @@ RSpec.describe "ThreeDgcViewer.render" do
       "--contrast", "1.2",
       "--opacity-threshold", "0.01",
       "--scale-multiplier", "0.75",
+      "--sh-degree", "1",
       "--camera-preset", "camera.json",
       "--assert-render-nonzero"
     ]).and_return(0)
@@ -39,6 +40,7 @@ RSpec.describe "ThreeDgcViewer.render" do
       contrast: 1.2,
       opacity_threshold: 0.01,
       scale_multiplier: 0.75,
+      sh_degree: 1,
       camera_preset: "camera.json",
       assert_nonzero: true
     )
