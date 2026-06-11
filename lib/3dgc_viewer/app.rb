@@ -59,6 +59,7 @@ module ThreeDgcViewer
       :hidden, :smoke_frame, :smoke_resize,
       :smoke_camera, :assert_render_nonzero,
       :print_render_stats, :screenshot, :benchmark, :frame_sequence, :frame_sequence_count, :frame_sequence_step,
+      :max_gaussians,
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :time_range, :pause, :turntable_speed, :power_preference, :present_mode,
       :background_color, :exposure, :gamma, :brightness, :contrast,
@@ -112,6 +113,7 @@ module ThreeDgcViewer
         frame_sequence: nil,
         frame_sequence_count: 1,
         frame_sequence_step: nil,
+        max_gaussians: PlyLoader::MAX_VERTEX_COUNT,
         eye: nil,
         target: nil,
         up: nil,
@@ -208,6 +210,7 @@ module ThreeDgcViewer
         opts.on("--frame-sequence PATTERN", "Save frame sequence using printf pattern, e.g. frame_%04d.pam") { |value| options.frame_sequence = value }
         opts.on("--frame-sequence-count N", Integer, "Number of frames for --frame-sequence") { |value| options.frame_sequence_count = value }
         opts.on("--frame-sequence-step T", Float, "4D time step per sequence frame") { |value| options.frame_sequence_step = value }
+        opts.on("--max-gaussians N", Integer, "Reject PLY files with more than N vertices") { |value| options.max_gaussians = value }
         opts.on("--validate-ply", "Parse --file and exit") { options.validate_ply = true }
         opts.on("--print-scene-info", "Print parsed scene statistics and exit") { options.print_scene_info = true }
         opts.on("--print-gpu-info", "Print GPU/native library locator information and exit") { options.print_gpu_info = true }
@@ -243,6 +246,7 @@ module ThreeDgcViewer
       validate_time_options(options)
       validate_tone_options(options)
       validate_sh_options(options)
+      validate_max_gaussians_option(options)
       validate_log_level(options.log_level)
       validate_file(options.file, option_name: "--file") if options.file
       validate_output_file("--save-camera-preset", options.save_camera_preset) if options.save_camera_preset
@@ -402,6 +406,12 @@ module ThreeDgcViewer
       raise OptionParser::InvalidArgument, "--sh-degree #{e.message}"
     end
 
+    def self.validate_max_gaussians_option(options)
+      PlyLoader.validate_max_vertex_count(options.max_gaussians)
+    rescue ArgumentError => e
+      raise OptionParser::InvalidArgument, "--max-gaussians #{e.message}"
+    end
+
     def self.validate_file(path, option_name:)
       raise OptionParser::InvalidArgument, "#{option_name} does not exist: #{path}" unless File.exist?(path)
       raise OptionParser::InvalidArgument, "#{option_name} is not a regular file: #{path}" unless File.file?(path)
@@ -540,7 +550,12 @@ module ThreeDgcViewer
     def validate_ply
       raise PlyError, "--validate-ply requires --file" unless @options.file
 
-      gaussian_set = PlyLoader.parse_file(@options.file, retain_items: false, sh_degree: @options.sh_degree)
+      gaussian_set = PlyLoader.parse_file(
+        @options.file,
+        retain_items: false,
+        sh_degree: @options.sh_degree,
+        max_vertex_count: @options.max_gaussians
+      )
       return puts_json(scene_info_hash(gaussian_set, gaussian_set.statistics)) if @options.json
 
       @logger.info("valid PLY: #{gaussian_set.kind}, #{gaussian_set.count} gaussians")
@@ -550,7 +565,12 @@ module ThreeDgcViewer
     def print_scene_info
       raise PlyError, "--print-scene-info requires --file" unless @options.file
 
-      gaussian_set = PlyLoader.parse_file(@options.file, retain_items: false, sh_degree: @options.sh_degree)
+      gaussian_set = PlyLoader.parse_file(
+        @options.file,
+        retain_items: false,
+        sh_degree: @options.sh_degree,
+        max_vertex_count: @options.max_gaussians
+      )
       stats = gaussian_set.statistics
       return puts_json(scene_info_hash(gaussian_set, stats)) if @options.json
 
@@ -703,6 +723,7 @@ module ThreeDgcViewer
         opacity_threshold: @options.opacity_threshold,
         scale_multiplier: @options.scale_multiplier,
         sh_degree: @options.sh_degree,
+        max_gaussians: @options.max_gaussians,
         watch_files: @options.watch,
         pair_capacity_factor: pair_capacity_factor,
         recent_files_store: build_recent_files_store

@@ -114,6 +114,17 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(set.statistics.bounds.max).to eq([1.0, 2.0, 3.0])
   end
 
+  it "rejects PLY files above the configured vertex limit" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    rows = [
+      [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9],
+      [-1.0, -2.0, -3.0, 0.5, 0.3, 0.2, 0.1, 1.0, 0.0, 0.0, 0.0, 0.6, 0.5, 0.4]
+    ]
+
+    expect { described_class.parse_bytes(build_ply(properties, rows), max_vertex_count: 1) }
+      .to raise_error(ThreeDgcViewer::PlyError, /vertex count 2 exceeds max gaussians 1/)
+  end
+
   it "skips non-finite Gaussian rows and reports invalid count" do
     properties = REQUIRED_3D.map { |name| ["float", name] }
     rows = [

@@ -78,32 +78,32 @@ module ThreeDgcViewer
       :properties, :property_map, :elements, :comments, :obj_info, keyword_init: true
     )
 
-    def self.parse_file(path, retain_items: true, sh_degree: MAX_SH_DEGREE)
+    def self.parse_file(path, retain_items: true, sh_degree: MAX_SH_DEGREE, max_vertex_count: MAX_VERTEX_COUNT)
       File.open(path, "rb") do |file|
         if gzip_io?(file)
           gzip = Zlib::GzipReader.new(file)
           begin
-            new(gzip, retain_items: retain_items, sh_degree: sh_degree).parse
+            new(gzip, retain_items: retain_items, sh_degree: sh_degree, max_vertex_count: max_vertex_count).parse
           ensure
             gzip.close
           end
         else
-          new(file, retain_items: retain_items, sh_degree: sh_degree).parse
+          new(file, retain_items: retain_items, sh_degree: sh_degree, max_vertex_count: max_vertex_count).parse
         end
       end
     end
 
-    def self.parse_bytes(bytes, retain_items: true, sh_degree: MAX_SH_DEGREE)
+    def self.parse_bytes(bytes, retain_items: true, sh_degree: MAX_SH_DEGREE, max_vertex_count: MAX_VERTEX_COUNT)
       io = StringIO.new(bytes.b)
       if gzip_io?(io)
         gzip = Zlib::GzipReader.new(io)
         begin
-          new(gzip, retain_items: retain_items, sh_degree: sh_degree).parse
+          new(gzip, retain_items: retain_items, sh_degree: sh_degree, max_vertex_count: max_vertex_count).parse
         ensure
           gzip.close
         end
       else
-        new(io, retain_items: retain_items, sh_degree: sh_degree).parse
+        new(io, retain_items: retain_items, sh_degree: sh_degree, max_vertex_count: max_vertex_count).parse
       end
     end
 
@@ -113,10 +113,11 @@ module ThreeDgcViewer
       magic == "\x1F\x8B".b
     end
 
-    def initialize(io, retain_items: true, sh_degree: MAX_SH_DEGREE)
+    def initialize(io, retain_items: true, sh_degree: MAX_SH_DEGREE, max_vertex_count: MAX_VERTEX_COUNT)
       @io = io
       @retain_items = retain_items
       @sh_degree = self.class.validate_sh_degree(sh_degree)
+      @max_vertex_count = self.class.validate_max_vertex_count(max_vertex_count)
     end
 
     def self.validate_sh_degree(value)
@@ -124,6 +125,15 @@ module ThreeDgcViewer
       raise ArgumentError, "SH degree must be an integer from 0 to #{MAX_SH_DEGREE}" unless degree && degree.between?(0, MAX_SH_DEGREE)
 
       degree
+    end
+
+    def self.validate_max_vertex_count(value)
+      count = Integer(value, exception: false)
+      unless count && count.positive? && count <= MAX_VERTEX_COUNT
+        raise ArgumentError, "max vertex count must be a positive integer up to #{MAX_VERTEX_COUNT}"
+      end
+
+      count
     end
 
     def parse
@@ -193,6 +203,9 @@ module ThreeDgcViewer
             raise PlyError, "duplicate PLY vertex element" if vertex_count
 
             vertex_count = current_element.count
+            if vertex_count > @max_vertex_count
+              raise PlyError, "PLY vertex count #{vertex_count} exceeds max gaussians #{@max_vertex_count}"
+            end
             offset = 0
           end
         when "property"

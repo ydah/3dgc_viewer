@@ -81,6 +81,7 @@ RSpec.describe ThreeDgcViewer::App do
       --sh-degree 1
       --quality fast
       --low-vram
+      --max-gaussians 123
       --watch
       --benchmark 3
       --frame-sequence-count 4
@@ -114,6 +115,7 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.sh_degree).to eq(1)
     expect(options.quality).to eq(:fast)
     expect(options.low_vram).to eq(true)
+    expect(options.max_gaussians).to eq(123)
     expect(options.watch).to eq(true)
     expect(options.benchmark).to eq(3)
     expect(options.screenshot).to eq(screenshot.path)
@@ -226,6 +228,13 @@ RSpec.describe ThreeDgcViewer::App do
   it "rejects invalid SH degree" do
     expect { described_class.parse_options(%w[--sh-degree 4]) }
       .to raise_error(OptionParser::InvalidArgument, /sh-degree/)
+  end
+
+  it "rejects invalid max gaussian limits" do
+    expect { described_class.parse_options(%w[--max-gaussians 0]) }
+      .to raise_error(OptionParser::InvalidArgument, /max-gaussians/)
+    expect { described_class.parse_options(["--max-gaussians", (ThreeDgcViewer::PlyLoader::MAX_VERTEX_COUNT + 1).to_s]) }
+      .to raise_error(OptionParser::InvalidArgument, /max-gaussians/)
   end
 
   it "rejects invalid quality presets" do
