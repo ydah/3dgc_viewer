@@ -91,7 +91,7 @@ module ThreeDgcViewer
 
       @instance = ::WGPU::Instance.new
       surface_ptr = WGPU::SurfaceShim.rbwgv_create_surface(@instance.handle, @window.ptr)
-      raise WgpuError, "surface shim returned null surface" if surface_ptr.null?
+      raise WgpuError, null_surface_message if surface_ptr.null?
 
       @surface = ::WGPU::Surface.new(surface_ptr, @instance)
       @adapter = @instance.request_adapter(power_preference: @power_preference, compatible_surface: @surface)
@@ -302,6 +302,16 @@ module ThreeDgcViewer
         max_pairs: max_pairs,
         pair_capacity_factor: @pair_capacity_factor
       )
+    end
+
+    def null_surface_message
+      surface_shim = LibraryLocator.surface_shim_location
+      wgpu_native = LibraryLocator.wgpu_native_location
+      window_ptr = @window.ptr.respond_to?(:address) ? "0x#{@window.ptr.address.to_s(16)}" : @window.ptr.inspect
+      "surface shim returned null surface " \
+        "(platform=#{LibraryLocator.platform}, window_ptr=#{window_ptr}, " \
+        "surface_shim=#{surface_shim.path} source=#{surface_shim.source} exists=#{surface_shim.exists}, " \
+        "wgpu_native=#{wgpu_native.path} source=#{wgpu_native.source} exists=#{wgpu_native.exists})"
     end
 
     def pointer_mode_for(button)

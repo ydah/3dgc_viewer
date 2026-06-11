@@ -31,6 +31,7 @@ module ThreeDgcViewer
 
             ffi_lib LibraryLocator.glfw_path
             attach_function :glfwInit, [], :int
+            attach_function :glfwGetError, [:pointer], :int
             attach_function :glfwTerminate, [], :void
             attach_function :glfwWindowHint, [:int, :int], :void
             attach_function :glfwCreateWindow, [:int, :int, :string, :pointer, :pointer], :pointer
@@ -54,14 +55,37 @@ module ThreeDgcViewer
           rescue LoadError, FFI::NotFoundError => e
             raise WindowError, "failed to load GLFW (set GLFW_LIB if needed): #{e.message}"
           end
+
+          def last_error_message
+            description_ptr = FFI::MemoryPointer.new(:pointer)
+            code = glfwGetError(description_ptr)
+            description = description_ptr.read_pointer
+            text = description.null? ? nil : description.read_string
+            return nil if code.zero? && text.to_s.empty?
+
+            ["GLFW error #{code}", text].compact.join(": ")
+          end
         end
       end
 
       attr_reader :ptr, :width, :height
 
+      def self.platform_hint
+        case LibraryLocator.platform
+        when /^linux-/
+          "check DISPLAY/WAYLAND_DISPLAY and installed X11/Wayland GLFW dependencies"
+        when /^macos-/
+          "check that the process can create GUI windows and that GLFW is installed or GLFW_LIB is set"
+        when /^windows-/
+          "check that glfw3.dll is discoverable or set GLFW_LIB"
+        else
+          "check that GLFW is installed or set GLFW_LIB"
+        end
+      end
+
       def initialize(width:, height:, title:, visible: true)
         Native.load!
-        raise WindowError, "glfwInit failed" if Native.glfwInit.zero?
+        raise WindowError, glfw_failure_message("glfwInit failed") if Native.glfwInit.zero?
 
         @owns_glfw = true
         @width = width
@@ -71,7 +95,7 @@ module ThreeDgcViewer
         Native.glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API)
         Native.glfwWindowHint(GLFW_VISIBLE, visible ? GLFW_TRUE : GLFW_FALSE)
         @ptr = Native.glfwCreateWindow(width, height, title, FFI::Pointer::NULL, FFI::Pointer::NULL)
-        raise WindowError, "glfwCreateWindow failed" if @ptr.null?
+        raise WindowError, glfw_failure_message("glfwCreateWindow failed") if @ptr.null?
 
         install_callbacks
       end
@@ -143,6 +167,10 @@ module ThreeDgcViewer
       end
 
       private
+
+      def glfw_failure_message(message)
+        [message, Native.last_error_message, self.class.platform_hint].compact.join("; ")
+      end
 
       def install_callbacks
         @callbacks[:key] = FFI::Function.new(:void, [:pointer, :int, :int, :int, :int]) do |_window, key, _scancode, action, _mods|
