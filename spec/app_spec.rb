@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "json"
+require "stringio"
 require "tempfile"
 
 RSpec.describe ThreeDgcViewer::App do
@@ -134,6 +136,18 @@ RSpec.describe ThreeDgcViewer::App do
     file&.unlink
   end
 
+  it "prints scene information as JSON" do
+    file = build_ply_file
+
+    output = capture_stdout { described_class.run(["--file", file.path, "--print-scene-info", "--json"]) }
+
+    data = JSON.parse(output)
+    expect(data.fetch("kind")).to eq("gaussian3d")
+    expect(data.fetch("gaussians")).to eq(1)
+  ensure
+    file&.unlink
+  end
+
   it "prints native library locator information without initializing the window" do
     result = nil
 
@@ -142,5 +156,22 @@ RSpec.describe ThreeDgcViewer::App do
     end.to output(/platform:/).to_stdout
 
     expect(result).to eq(0)
+  end
+
+  it "prints native library locator information as JSON" do
+    output = capture_stdout { described_class.run(%w[--print-gpu-info --json]) }
+    data = JSON.parse(output)
+
+    expect(data).to include("platform", "wgpu_native", "glfw", "surface_shim")
+  end
+
+  def capture_stdout
+    original = $stdout
+    buffer = StringIO.new
+    $stdout = buffer
+    yield
+    buffer.string
+  ensure
+    $stdout = original
   end
 end

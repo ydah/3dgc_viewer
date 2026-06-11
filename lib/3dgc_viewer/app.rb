@@ -2,6 +2,7 @@
 
 require "logger"
 require "optparse"
+require "json"
 require_relative "app_state"
 require_relative "ply_loader"
 require_relative "version"
@@ -45,7 +46,7 @@ module ThreeDgcViewer
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :pause, :power_preference, :present_mode,
       :background_color, :exposure, :gamma,
-      :watch, :quality, :low_vram,
+      :watch, :quality, :low_vram, :json,
       keyword_init: true
     )
 
@@ -91,7 +92,8 @@ module ThreeDgcViewer
         gamma: 1.0,
         watch: false,
         quality: :balanced,
-        low_vram: false
+        low_vram: false,
+        json: false
       )
       explicit_render_size = false
 
@@ -129,6 +131,7 @@ module ThreeDgcViewer
         opts.on("--quality PRESET", "fast/balanced/quality") { |value| options.quality = parse_quality(value) }
         opts.on("--low-vram", "Use smaller default GPU pair buffers") { options.low_vram = true }
         opts.on("--watch", "Reload the loaded file when it changes") { options.watch = true }
+        opts.on("--json", "Use machine-readable JSON for print commands") { options.json = true }
         opts.on("--log-level LEVEL", "debug/info/warn/error") { |value| options.log_level = value }
         opts.on("--wgpu-native PATH", "Path to libwgpu_native") { |value| options.wgpu_native = value }
         opts.on("--glfw PATH", "Path to libglfw") { |value| options.glfw = value }
@@ -329,6 +332,8 @@ module ThreeDgcViewer
 
       gaussian_set = PlyLoader.parse_file(@options.file, retain_items: false)
       stats = gaussian_set.statistics
+      return puts_json(scene_info_hash(gaussian_set, stats)) if @options.json
+
       puts "kind: #{gaussian_set.kind}"
       puts "gaussians: #{gaussian_set.count}"
       puts "invalid_gaussians: #{stats.invalid_count}"
@@ -344,12 +349,56 @@ module ThreeDgcViewer
     end
 
     def print_gpu_info
+      return puts_json(gpu_info_hash) if @options.json
+
       puts "platform: #{LibraryLocator.platform}"
       print_location("wgpu_native", LibraryLocator.wgpu_native_location)
       print_location("glfw", LibraryLocator.glfw_location)
       print_location("surface_shim", LibraryLocator.surface_shim_location)
       puts "shader_dir: #{LibraryLocator.shader_dir}"
       0
+    end
+
+    def puts_json(value)
+      puts JSON.generate(value)
+      0
+    end
+
+    def scene_info_hash(gaussian_set, stats)
+      {
+        kind: gaussian_set.kind,
+        gaussians: gaussian_set.count,
+        invalid_gaussians: stats.invalid_count,
+        bounds: stats.bounds.empty? ? nil : {
+          min: stats.bounds.min,
+          max: stats.bounds.max,
+          center: stats.bounds.center,
+          radius: stats.bounds.radius
+        },
+        opacity_range: range_or_nil(stats.opacity_min, stats.opacity_max),
+        scale_range: range_or_nil(stats.scale_min, stats.scale_max),
+        metadata: gaussian_set.metadata
+      }
+    end
+
+    def gpu_info_hash
+      {
+        platform: LibraryLocator.platform,
+        wgpu_native: location_hash(LibraryLocator.wgpu_native_location),
+        glfw: location_hash(LibraryLocator.glfw_location),
+        surface_shim: location_hash(LibraryLocator.surface_shim_location),
+        shader_dir: LibraryLocator.shader_dir
+      }
+    end
+
+    def location_hash(location)
+      {path: location.path, source: location.source, exists: location.exists}
+    end
+
+    def range_or_nil(min, max)
+      return nil unless min && max
+
+      [min, max]
     end
 
     def run_window_only
