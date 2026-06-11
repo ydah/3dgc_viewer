@@ -47,12 +47,12 @@ module ThreeDgcViewer
       @screen_size = [positive_int(width), positive_int(height)]
     end
 
-    def update_time(dt_sec, speed: Scene::TIME_SPEED)
-      @time = (@time + (dt_sec.to_f * speed.to_f)) % 1.0
+    def update_time(dt_sec, speed: Scene::TIME_SPEED, range: nil)
+      set_time(@time + (dt_sec.to_f * speed.to_f), range: range)
     end
 
-    def set_time(value)
-      @time = value.to_f % 1.0
+    def set_time(value, range: nil)
+      @time = wrap_time(value.to_f, range)
     end
 
     def pack
@@ -83,6 +83,16 @@ module ThreeDgcViewer
       values = Array(color).first(4).map(&:to_f)
       values += [1.0] while values.length < 4
       values
+    end
+
+    def wrap_time(value, range)
+      return value % 1.0 unless range
+
+      start_time, end_time = range
+      length = end_time.to_f - start_time.to_f
+      return start_time.to_f if length <= 0.0
+
+      start_time.to_f + ((value - start_time.to_f) % length)
     end
   end
 end

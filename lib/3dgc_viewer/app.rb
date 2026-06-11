@@ -60,7 +60,7 @@ module ThreeDgcViewer
       :smoke_camera, :assert_render_nonzero,
       :screenshot, :benchmark, :frame_sequence, :frame_sequence_count, :frame_sequence_step,
       :eye, :target, :up, :fov, :znear, :zfar,
-      :time, :time_speed, :pause, :turntable_speed, :power_preference, :present_mode,
+      :time, :time_speed, :time_range, :pause, :turntable_speed, :power_preference, :present_mode,
       :background_color, :exposure, :gamma, :brightness, :contrast,
       :opacity_threshold, :scale_multiplier, :sh_degree,
       :watch, :quality, :low_vram, :json,
@@ -118,6 +118,7 @@ module ThreeDgcViewer
         zfar: 10_000.0,
         time: 0.0,
         time_speed: Scene::TIME_SPEED,
+        time_range: nil,
         pause: false,
         turntable_speed: 0.0,
         power_preference: :high_performance,
@@ -168,6 +169,7 @@ module ThreeDgcViewer
         opts.on("--zfar N", Float, "Camera far plane") { |value| options.zfar = value }
         opts.on("--time T", Float, "Initial 4D scene time in [0, 1)") { |value| options.time = value }
         opts.on("--time-speed N", Float, "4D playback speed multiplier") { |value| options.time_speed = value }
+        opts.on("--time-range START,END", "4D playback loop range in [0, 1]") { |value| options.time_range = parse_time_range(value) }
         opts.on("--pause", "Start 4D playback paused") { options.pause = true }
         opts.on("--turntable", "Enable turntable camera animation") { options.turntable_speed = AppState::DEFAULT_TURNTABLE_SPEED }
         opts.on("--turntable-speed DEG_PER_SEC", Float, "Turntable camera speed in degrees per second") { |value| options.turntable_speed = value }
@@ -366,6 +368,18 @@ module ThreeDgcViewer
       raise OptionParser::InvalidArgument, "--time must be finite" unless options.time.to_f.finite?
       raise OptionParser::InvalidArgument, "--time-speed must be finite" unless options.time_speed.to_f.finite?
       raise OptionParser::InvalidArgument, "--turntable-speed must be finite" unless options.turntable_speed.to_f.finite?
+    end
+
+    def self.parse_time_range(value)
+      parts = value.to_s.split(",")
+      raise OptionParser::InvalidArgument, "--time-range must be START,END" unless parts.length == 2
+
+      range = parts.map { |part| Float(part, exception: false) }
+      unless range.all? { |number| number&.finite? } && range[0] >= 0.0 && range[0] < range[1] && range[1] <= 1.0
+        raise OptionParser::InvalidArgument, "--time-range must satisfy 0 <= START < END <= 1"
+      end
+
+      range
     end
 
     def self.validate_tone_options(options)
@@ -660,6 +674,7 @@ module ThreeDgcViewer
         initial_camera: build_initial_camera(window),
         initial_time: @options.time,
         time_speed: @options.time_speed,
+        time_range: @options.time_range,
         time_paused: @options.pause,
         turntable_speed: @options.turntable_speed,
         power_preference: @options.power_preference,

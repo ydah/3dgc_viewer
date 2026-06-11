@@ -65,6 +65,7 @@ RSpec.describe ThreeDgcViewer::AppState do
       initial_camera: camera,
       initial_time: 0.25,
       time_speed: 2.0,
+      time_range: [0.2, 0.8],
       time_paused: true,
       turntable_speed: 30.0,
       background_color: [0.1, 0.2, 0.3, 1.0],
@@ -81,6 +82,7 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(state.camera.fovy).to eq(60.0)
     expect(state.scene_uniform.time).to eq(0.25)
     expect(state.time_speed).to eq(2.0)
+    expect(state.time_range).to eq([0.2, 0.8])
     expect(state.time_paused).to eq(true)
     expect(state.turntable_speed).to eq(30.0)
     expect(state.turntable_enabled).to eq(true)
@@ -94,11 +96,11 @@ RSpec.describe ThreeDgcViewer::AppState do
   end
 
   it "can set sequence capture time directly" do
-    state = described_class.new(FakeWindow.new(1280, 720), initial_time: 0.25)
+    state = described_class.new(FakeWindow.new(1280, 720), initial_time: 0.25, time_range: [0.2, 0.6])
 
-    state.set_time(1.25)
+    state.set_time(0.75)
 
-    expect(state.scene_uniform.time).to eq(0.25)
+    expect(state.scene_uniform.time).to be_within(1e-9).of(0.35)
   end
 
   it "handles fit reset and axis toggle shortcuts" do

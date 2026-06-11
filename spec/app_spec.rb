@@ -65,6 +65,7 @@ RSpec.describe ThreeDgcViewer::App do
     options = described_class.parse_options(%w[
       --time 0.25
       --time-speed 2.5
+      --time-range 0.2,0.8
       --pause
       --turntable-speed 30
       --power-preference low-power
@@ -98,6 +99,7 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.zfar).to eq(300.0)
     expect(options.time).to eq(0.25)
     expect(options.time_speed).to eq(2.5)
+    expect(options.time_range).to eq([0.2, 0.8])
     expect(options.pause).to eq(true)
     expect(options.turntable_speed).to eq(30.0)
     expect(options.power_preference).to eq(:low_power)
@@ -214,6 +216,11 @@ RSpec.describe ThreeDgcViewer::App do
   it "rejects invalid turntable speed" do
     expect { described_class.parse_options(%w[--turntable-speed NaN]) }
       .to raise_error(OptionParser::InvalidArgument, /turntable-speed/)
+  end
+
+  it "rejects invalid time ranges" do
+    expect { described_class.parse_options(%w[--time-range 0.8,0.2]) }
+      .to raise_error(OptionParser::InvalidArgument, /time-range/)
   end
 
   it "rejects invalid SH degree" do

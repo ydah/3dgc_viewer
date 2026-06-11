@@ -22,12 +22,13 @@ module ThreeDgcViewer
     DEFAULT_TURNTABLE_SPEED = 15.0
 
     attr_reader :window, :scene_type, :resources, :camera, :scene_uniform, :show_axis, :recent_files,
-                :render_width, :render_height, :time_speed, :time_paused, :turntable_speed, :turntable_enabled
+                :render_width, :render_height, :time_speed, :time_range, :time_paused,
+                :turntable_speed, :turntable_enabled
 
     def initialize(window, logger: Logger.new($stderr), show_axis: true,
                    render_width: Scene::SCREEN_WIDTH, render_height: Scene::SCREEN_HEIGHT,
                    follow_window_render_size: false, initial_camera: nil,
-                   initial_time: 0.0, time_speed: Scene::TIME_SPEED, time_paused: false,
+                   initial_time: 0.0, time_speed: Scene::TIME_SPEED, time_range: nil, time_paused: false,
                    turntable_speed: 0.0,
                    power_preference: :high_performance, present_mode: nil,
                    background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0,
@@ -39,6 +40,7 @@ module ThreeDgcViewer
       @show_axis = show_axis
       @follow_window_render_size = follow_window_render_size
       @time_speed = time_speed.to_f
+      @time_range = time_range
       @time_paused = time_paused
       @turntable_speed = turntable_speed.to_f
       @turntable_enabled = !@turntable_speed.zero?
@@ -83,7 +85,7 @@ module ThreeDgcViewer
         scale_multiplier: scale_multiplier
       )
       @scene_uniform.update_camera(@camera)
-      @scene_uniform.set_time(initial_time)
+      @scene_uniform.set_time(initial_time, range: @time_range)
       @resources = build_gaussian_resources(Gaussian::GaussianSet.new(kind: :gaussian3d, items: []))
     end
 
@@ -186,7 +188,7 @@ module ThreeDgcViewer
       @scene_dirty = true if update_turntable(dt) == :active
       @scene_uniform.update_camera(@camera)
       @scene_uniform.update_gaussian_count(@resources.gaussian_count)
-      @scene_uniform.update_time(dt, speed: @time_speed) if Scene.dynamic?(@scene_type) && !@time_paused
+      @scene_uniform.update_time(dt, speed: @time_speed, range: @time_range) if Scene.dynamic?(@scene_type) && !@time_paused
       @queue&.write_buffer(@scene_uniform_buffer, 0, @scene_uniform.pack) if @scene_uniform_buffer
     end
 
@@ -235,7 +237,7 @@ module ThreeDgcViewer
     end
 
     def set_time(value)
-      @scene_uniform.set_time(value)
+      @scene_uniform.set_time(value, range: @time_range)
       @queue&.write_buffer(@scene_uniform_buffer, 0, @scene_uniform.pack) if @scene_uniform_buffer
       @scene_dirty = true
     end
