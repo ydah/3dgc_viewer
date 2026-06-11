@@ -886,6 +886,7 @@ module ThreeDgcViewer
       puts "render_nonzero_rgb_pixels: #{stats[:nonzero_rgb_pixels]}"
       puts "render_rgb_sum: #{stats[:rgb_sum]}"
       puts "render_alpha_sum: #{stats[:alpha_sum]}"
+      puts "render_luminance_histogram: #{stats[:luminance_histogram].join(",")}"
       puts "render_checksum: #{stats[:checksum]}"
     end
 

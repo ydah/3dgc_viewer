@@ -208,20 +208,21 @@ RSpec.describe ThreeDgcViewer::AppState do
   end
 
   it "summarizes render texture pixels for batch verification" do
-    state = described_class.new(FakeWindow.new(1280, 720), render_width: 2, render_height: 1)
-    rgba = [1, 2, 3, 4, 0, 0, 0, 5].pack("C*")
+    state = described_class.new(FakeWindow.new(1280, 720), render_width: 3, render_height: 1)
+    rgba = [1, 2, 3, 4, 0, 0, 0, 5, 255, 255, 255, 6].pack("C*")
     state.define_singleton_method(:render_texture_rgba_bytes) { rgba }
 
     stats = state.render_texture_statistics
 
     expect(stats).to include(
-      width: 2,
+      width: 3,
       height: 1,
-      pixels: 2,
-      nonzero_rgb_pixels: 1,
-      rgb_sum: 6,
-      alpha_sum: 9
+      pixels: 3,
+      nonzero_rgb_pixels: 2,
+      rgb_sum: 771,
+      alpha_sum: 15
     )
+    expect(stats[:luminance_histogram].values_at(0, 15)).to eq([2, 1])
     expect(stats[:checksum]).to be_a(Integer)
   end
 

@@ -240,6 +240,7 @@ module ThreeDgcViewer
         nonzero_rgb_pixels: 0,
         rgb_sum: 0,
         alpha_sum: 0,
+        luminance_histogram: Array.new(16, 0),
         checksum: fnv1a32(bytes)
       }
       bytes.bytes.each_slice(4) do |red, green, blue, alpha|
@@ -249,6 +250,8 @@ module ThreeDgcViewer
         stats[:nonzero_rgb_pixels] += 1 if red.positive? || green.positive? || blue.positive?
         stats[:rgb_sum] += red + green + blue
         stats[:alpha_sum] += alpha.to_i
+        bucket = [[((red + green + blue) / 3) / 16, 0].max, 15].min
+        stats[:luminance_histogram][bucket] += 1
       end
       stats
     end
