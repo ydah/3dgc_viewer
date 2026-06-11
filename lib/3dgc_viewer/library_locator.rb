@@ -61,8 +61,8 @@ module ThreeDgcViewer
     def glfw_location
       locate(
         env_key: "GLFW_LIB",
-        vendor_glob: File.join(root, "vendor", "glfw", platform, "libglfw*"),
-        fallback: fallback_library_name("glfw")
+        vendor_glob: glfw_vendor_glob,
+        fallback: glfw_fallback_library_name
       )
     end
 
@@ -100,6 +100,17 @@ module ThreeDgcViewer
       return "#{base}.dll" if platform.start_with?("windows-")
 
       "lib#{base}.#{shared_library_extension}"
+    end
+
+    def glfw_vendor_glob
+      pattern = platform.start_with?("windows-") ? "{glfw3.dll,glfw.dll,libglfw*}" : "libglfw*"
+      File.join(root, "vendor", "glfw", platform, pattern)
+    end
+
+    def glfw_fallback_library_name
+      return "glfw3.dll" if platform.start_with?("windows-")
+
+      fallback_library_name("glfw")
     end
   end
 end
