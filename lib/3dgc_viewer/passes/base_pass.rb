@@ -60,11 +60,7 @@ module ThreeDgcViewer
 
         layout = keep(@device.create_bind_group_layout(label: "#{shader_name} BGL", entries: layout_entries))
         pipeline_layout = keep(@device.create_pipeline_layout(label: "#{shader_name} Pipeline Layout", bind_group_layouts: [layout]))
-        pipeline = keep(@device.create_compute_pipeline(
-          label: "#{shader_name} Pipeline",
-          layout: pipeline_layout,
-          compute: {module: shader_module(shader_name), entry_point: "main"}
-        ))
+        pipeline = keep(create_compute_pipeline(shader_name, pipeline_layout))
         bind_group = keep(@device.create_bind_group(label: "#{shader_name} Bind Group", layout: layout, entries: bind_entries))
         {layout: layout, pipeline_layout: pipeline_layout, pipeline: pipeline, bind_group: bind_group}
       end
@@ -73,14 +69,46 @@ module ThreeDgcViewer
         return nil unless gpu_enabled?
 
         pipeline_layout = keep(@device.create_pipeline_layout(label: "#{label} Pipeline Layout", bind_group_layouts: bind_group_layouts))
-        keep(@device.create_render_pipeline(
+        keep(create_render_pipeline(
+          label: label,
+          shader_name: shader_name,
+          pipeline_layout: pipeline_layout,
+          vertex: vertex,
+          fragment: fragment,
+          primitive: primitive,
+          depth_stencil: depth_stencil
+        ))
+      end
+
+      def create_compute_pipeline(shader_name, pipeline_layout)
+        @device.create_compute_pipeline(
+          label: "#{shader_name} Pipeline",
+          layout: pipeline_layout,
+          compute: {module: shader_module(shader_name), entry_point: "main"}
+        )
+      rescue ShaderError
+        raise
+      rescue StandardError => e
+        raise ShaderError, "failed to create compute pipeline shader=#{shader_name} entry_point=main: #{e.message}"
+      end
+
+      def create_render_pipeline(label:, shader_name:, pipeline_layout:, vertex:, fragment:, primitive:, depth_stencil:)
+        vertex_entry = vertex.fetch(:entry_point)
+        fragment_entry = fragment.fetch(:entry_point)
+        @device.create_render_pipeline(
           label: "#{label} Pipeline",
           layout: pipeline_layout,
           vertex: vertex.merge(module: shader_module(shader_name)),
           primitive: primitive,
           depth_stencil: depth_stencil,
           fragment: fragment.merge(module: shader_module(shader_name))
-        ))
+        )
+      rescue ShaderError
+        raise
+      rescue StandardError => e
+        raise ShaderError,
+              "failed to create render pipeline label=#{label} shader=#{shader_name} " \
+              "vertex_entry=#{vertex_entry} fragment_entry=#{fragment_entry}: #{e.message}"
       end
 
       def buffer_layout(binding, type: :storage, visibility: :compute)
