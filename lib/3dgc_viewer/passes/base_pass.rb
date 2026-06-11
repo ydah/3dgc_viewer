@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../errors"
+
 module ThreeDgcViewer
   module Passes
     class BasePass
@@ -16,13 +18,17 @@ module ThreeDgcViewer
 
       def recreate_bind_group(resources: @resources, **_kwargs)
         @resources = resources
+        @released = false
       end
 
       def encode(_encoder, resources: @resources)
+        ensure_not_released!
         @resources = resources
       end
 
       def release
+        return if @released
+
         @gpu_objects.reverse_each { |object| object.release if object.respond_to?(:release) }
         @gpu_objects.clear
         @released = true
@@ -32,6 +38,12 @@ module ThreeDgcViewer
 
       def gpu_enabled?
         @device && @device.respond_to?(:create_bind_group_layout)
+      end
+
+      def ensure_not_released!
+        return unless @released
+
+        raise ResourceError, "#{self.class.name} was used after release"
       end
 
       def shader_module(name)

@@ -5,5 +5,6 @@ module ThreeDgcViewer
   class WgpuError < Error; end
   class PlyError < Error; end
   class ShaderError < Error; end
+  class ResourceError < Error; end
   class WindowError < Error; end
 end
