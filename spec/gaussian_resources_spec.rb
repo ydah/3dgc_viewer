@@ -84,4 +84,43 @@ RSpec.describe ThreeDgcViewer::GaussianResources do
     expect(resources).to respond_to(:tile_ranges_buffer)
     expect(resources).not_to respond_to(:typo_buffer)
   end
+
+  it "releases created GPU buffers at most once" do
+    buffer_class = Class.new do
+      attr_reader :release_count
+
+      def initialize
+        @release_count = 0
+      end
+
+      def release
+        @release_count += 1
+      end
+    end
+    device = Class.new do
+      attr_reader :buffers
+
+      define_method(:initialize) do
+        @buffers = []
+      end
+
+      define_method(:create_buffer_with_data) do |label:, data:, usage:|
+        create_buffer
+      end
+
+      define_method(:create_buffer) do |**_kwargs|
+        buffer = buffer_class.new
+        @buffers << buffer
+        buffer
+      end
+    end.new
+    set = ThreeDgcViewer::Gaussian::GaussianSet.new(kind: :gaussian3d, items: [])
+    resources = described_class.new(device: device, gaussian_set: set)
+
+    resources.release
+    resources.release
+
+    expect(device.buffers).not_to be_empty
+    expect(device.buffers.map(&:release_count).uniq).to eq([1])
+  end
 end

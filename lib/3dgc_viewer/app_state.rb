@@ -3,6 +3,7 @@
 require "logger"
 require_relative "binary_pack"
 require_relative "camera"
+require_relative "frame_statistics"
 require_relative "gaussian"
 require_relative "gaussian_resources"
 require_relative "library_locator"
@@ -53,6 +54,7 @@ module ThreeDgcViewer
       @resource_generation = 0
       @released = false
       @pair_overflow_readback = nil
+      @frame_statistics = FrameStatistics.new
       @last_update_time = monotonic_time
       @fps_timer = monotonic_time
       @frame_count = 0
@@ -175,13 +177,18 @@ module ThreeDgcViewer
     end
 
     def render
-      render_gpu_frame if @is_surface_configured
+      frame_started = monotonic_time
+      if @is_surface_configured
+        render_gpu_frame
+        @frame_statistics.record(monotonic_time - frame_started)
+      end
       @frame_count += 1
       now = monotonic_time
       return if now - @fps_timer < 5.0
 
       @last_fps = (@frame_count / (now - @fps_timer)).round(1)
-      @logger.info("fps: #{@last_fps}")
+      @logger.info(fps_log_message(@frame_statistics.snapshot))
+      @frame_statistics.reset
       update_window_title
       @frame_count = 0
       @fps_timer = now
@@ -380,6 +387,19 @@ module ThreeDgcViewer
         value /= 1024.0
       end
       "#{value.round(1)} #{unit}"
+    end
+
+    def fps_log_message(frame_stats)
+      message = "fps: #{@last_fps}"
+      return message unless frame_stats
+
+      format(
+        "%<message>s frame_ms p50=%<p50>.2f p95=%<p95>.2f p99=%<p99>.2f",
+        message: message,
+        p50: frame_stats.fetch(:p50_ms),
+        p95: frame_stats.fetch(:p95_ms),
+        p99: frame_stats.fetch(:p99_ms)
+      )
     end
 
     def update_window_title
