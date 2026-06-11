@@ -48,6 +48,7 @@ module ThreeDgcViewer
     EXIT_SHADER_ERROR = 4
     EXIT_WGPU_ERROR = 5
     EXIT_WINDOW_ERROR = 6
+    WGPU_GEM_REQUIREMENT = Gem::Requirement.new("~> 1.1")
 
     Options = Struct.new(
       :file, :width, :height, :log_level, :wgpu_native, :glfw, :show_axis,
@@ -636,6 +637,15 @@ module ThreeDgcViewer
       print_location("wgpu_native", LibraryLocator.wgpu_native_location)
       print_location("glfw", LibraryLocator.glfw_location)
       print_location("surface_shim", LibraryLocator.surface_shim_location)
+      puts "wgpu_gem: #{diagnostics[:wgpu_gem][:version] || "not found"}"
+      puts "wgpu_gem_requirement: #{diagnostics[:wgpu_gem][:requirement]}"
+      puts "wgpu_gem_compatible: #{diagnostics[:wgpu_gem][:compatible]}"
+      if diagnostics[:wgpu_gem][:native_library]
+        puts "wgpu_gem_native: #{diagnostics[:wgpu_gem][:native_library]}"
+      end
+      if diagnostics[:wgpu_gem][:load_error]
+        puts "wgpu_gem_load_error: #{diagnostics[:wgpu_gem][:load_error]}"
+      end
       puts "shader_dir: #{diagnostics[:shader_dir][:path]}"
       puts "shader_dir_exists: #{diagnostics[:shader_dir][:exists]}"
       0
@@ -760,6 +770,7 @@ module ThreeDgcViewer
         },
         platform: LibraryLocator.platform,
         wgpu_native: location_hash(LibraryLocator.wgpu_native_location),
+        wgpu_gem: wgpu_gem_hash,
         glfw: location_hash(LibraryLocator.glfw_location),
         surface_shim: location_hash(LibraryLocator.surface_shim_location),
         shader_dir: {
@@ -771,6 +782,40 @@ module ThreeDgcViewer
 
     def location_hash(location)
       {path: location.path, source: location.source, exists: location.exists}
+    end
+
+    def wgpu_gem_hash
+      spec = Gem.loaded_specs["wgpu"] || Gem::Specification.find_all_by_name("wgpu").max_by(&:version)
+      version = spec&.version&.to_s
+      compatible = version ? WGPU_GEM_REQUIREMENT.satisfied_by?(Gem::Version.new(version)) : false
+      info = {
+        version: version,
+        requirement: WGPU_GEM_REQUIREMENT.to_s,
+        compatible: compatible
+      }
+
+      add_wgpu_native_probe(info)
+      info
+    rescue StandardError => e
+      {
+        version: nil,
+        requirement: WGPU_GEM_REQUIREMENT.to_s,
+        compatible: false,
+        error: e.message
+      }
+    end
+
+    def add_wgpu_native_probe(info)
+      require "wgpu"
+
+      native = ::WGPU.const_defined?(:Native) ? ::WGPU::Native : nil
+      return unless native&.respond_to?(:library_path)
+
+      path = native.library_path
+      info[:native_library] = path
+      info[:native_library_exists] = path ? File.file?(path) : false
+    rescue LoadError, StandardError => e
+      info[:load_error] = e.message
     end
 
     def range_or_nil(min, max)
