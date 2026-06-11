@@ -143,6 +143,18 @@ RSpec.describe ThreeDgcViewer::App do
     expect(described_class.run(%w[--validate-ply])).to eq(3)
   end
 
+  it "prints validate-only results as JSON" do
+    file = build_ply_file
+
+    output = capture_stdout { described_class.run(["--file", file.path, "--validate-ply", "--json"]) }
+    data = JSON.parse(output)
+
+    expect(data.fetch("kind")).to eq("gaussian3d")
+    expect(data.fetch("gaussians")).to eq(1)
+  ensure
+    file&.unlink
+  end
+
   it "prints scene information without initializing the window" do
     file = build_ply_file
     result = nil

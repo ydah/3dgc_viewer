@@ -354,6 +354,8 @@ module ThreeDgcViewer
       raise PlyError, "--validate-ply requires --file" unless @options.file
 
       gaussian_set = PlyLoader.parse_file(@options.file, retain_items: false)
+      return puts_json(scene_info_hash(gaussian_set, gaussian_set.statistics)) if @options.json
+
       @logger.info("valid PLY: #{gaussian_set.kind}, #{gaussian_set.count} gaussians")
       0
     end
