@@ -5,6 +5,31 @@ require_relative "scene"
 
 module ThreeDgcViewer
   class GaussianResources
+    BUFFER_NAMES = %i[
+      gaussian_buffer
+      preprocess_output_buffer
+      tiles_touched_buffer
+      visible_count_buffer
+      prefix_dispatch_args_buffer
+      prefix_counts_buffer
+      offsets_buffer
+      block_sums0_buffer
+      block_offsets0_buffer
+      block_sums1_buffer
+      block_offsets1_buffer
+      block_sums2_buffer
+      pair_keys_buffer
+      pair_values_buffer
+      pair_keys_tmp_buffer
+      pair_values_tmp_buffer
+      radix_histograms_buffer
+      total_pairs_buffer
+      radix_params_buffer
+      radix_dispatch_args_buffer
+      tile_range_dispatch_args_buffer
+      tile_ranges_buffer
+    ].freeze
+
     BufferSpec = Struct.new(:name, :size, :usage, keyword_init: true)
 
     attr_reader :gaussian_set, :gaussian_count, :count1, :max_pairs,
@@ -49,15 +74,7 @@ module ThreeDgcViewer
       @buffers.clear
     end
 
-    def respond_to_missing?(name, include_private = false)
-      buffer_specs.any? { |spec| spec.name == name } || super
-    end
-
-    def method_missing(name, *args, &block)
-      return @buffers[name] if args.empty? && @buffers.key?(name)
-
-      super
-    end
+    BUFFER_NAMES.each { |name| define_method(name) { @buffers[name] } }
 
     def gaussian_bytes
       packed = Gaussian.pack_set(@gaussian_set)

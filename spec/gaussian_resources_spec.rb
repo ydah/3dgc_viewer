@@ -60,4 +60,13 @@ RSpec.describe ThreeDgcViewer::GaussianResources do
     expect(resources.buffer_specs.find { |spec| spec.name == :pair_keys_buffer }.size).to eq(8 * 4096)
     expect(described_class.next_pair_capacity(4097, 4096)).to eq(8192)
   end
+
+  it "exposes buffer accessors explicitly" do
+    set = ThreeDgcViewer::Gaussian::GaussianSet.new(kind: :gaussian3d, items: [])
+    resources = described_class.new(gaussian_set: set)
+
+    expect(resources).to respond_to(:gaussian_buffer)
+    expect(resources).to respond_to(:tile_ranges_buffer)
+    expect(resources).not_to respond_to(:typo_buffer)
+  end
 end
