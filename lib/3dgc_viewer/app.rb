@@ -3,6 +3,7 @@
 require "logger"
 require "optparse"
 require "json"
+require "time"
 require_relative "app_state"
 require_relative "camera_preset"
 require_relative "ply_loader"
@@ -49,6 +50,7 @@ module ThreeDgcViewer
       :render_width, :render_height, :render_scale, :render_size_window,
       :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info,
       :camera_preset, :save_camera_preset,
+      :log_json, :debug_errors,
       :hidden, :smoke_frame, :smoke_resize,
       :smoke_camera, :assert_render_nonzero,
       :screenshot, :benchmark, :frame_sequence, :frame_sequence_count, :frame_sequence_step,
@@ -83,6 +85,8 @@ module ThreeDgcViewer
         print_gpu_info: false,
         camera_preset: nil,
         save_camera_preset: nil,
+        log_json: false,
+        debug_errors: false,
         hidden: false,
         smoke_frame: false,
         smoke_resize: false,
@@ -160,6 +164,8 @@ module ThreeDgcViewer
         opts.on("--low-vram", "Use smaller default GPU pair buffers") { options.low_vram = true }
         opts.on("--watch", "Reload the loaded file when it changes") { options.watch = true }
         opts.on("--json", "Use machine-readable JSON for print commands") { options.json = true }
+        opts.on("--log-json", "Write logs as JSON lines to stderr") { options.log_json = true }
+        opts.on("--debug-errors", "Log exception backtraces on failure") { options.debug_errors = true }
         opts.on("--log-level LEVEL", "debug/info/warn/error") { |value| options.log_level = value }
         opts.on("--wgpu-native PATH", "Path to libwgpu_native") { |value| options.wgpu_native = value }
         opts.on("--glfw PATH", "Path to libglfw") { |value| options.glfw = value }
@@ -409,6 +415,7 @@ module ThreeDgcViewer
       @logger = Logger.new($stderr)
       @logger.level = logger_level(options.log_level)
       @logger.progname = "3dgc_viewer"
+      @logger.formatter = json_log_formatter if options.log_json
     end
 
     def run
@@ -421,10 +428,10 @@ module ThreeDgcViewer
       @options.window_only ? run_window_only : run_native
       0
     rescue Error => e
-      @logger.error(e.message)
+      log_exception(e)
       exit_code_for(e)
     rescue StandardError => e
-      @logger.error(e.message)
+      log_exception(e)
       EXIT_RUNTIME_ERROR
     end
 
@@ -730,6 +737,24 @@ module ThreeDgcViewer
 
     def logger_level(value)
       LOG_LEVELS.fetch(value.to_s.downcase)
+    end
+
+    def json_log_formatter
+      proc do |severity, datetime, progname, message|
+        JSON.generate(
+          time: datetime.iso8601(6),
+          level: severity.downcase,
+          progname: progname,
+          message: message.to_s
+        ) + "\n"
+      end
+    end
+
+    def log_exception(error)
+      @logger.error(error.message)
+      return unless @options.debug_errors && error.backtrace
+
+      @logger.debug(error.backtrace.join("\n"))
     end
 
     def monotonic_time

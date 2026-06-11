@@ -262,6 +262,17 @@ RSpec.describe ThreeDgcViewer::App do
     expect(data).to include("platform", "wgpu_native", "glfw", "surface_shim")
   end
 
+  it "can write logs as JSON lines" do
+    stderr = nil
+    capture_stdout do
+      stderr = capture_stderr { described_class.run(%w[--print-gpu-info --log-json]) }
+    end
+    first_log = JSON.parse(stderr.lines.first)
+
+    expect(first_log).to include("time", "level", "progname", "message")
+    expect(first_log.fetch("level")).to eq("info")
+  end
+
   def capture_stdout
     original = $stdout
     buffer = StringIO.new
@@ -270,5 +281,15 @@ RSpec.describe ThreeDgcViewer::App do
     buffer.string
   ensure
     $stdout = original
+  end
+
+  def capture_stderr
+    original = $stderr
+    buffer = StringIO.new
+    $stderr = buffer
+    yield
+    buffer.string
+  ensure
+    $stderr = original
   end
 end
