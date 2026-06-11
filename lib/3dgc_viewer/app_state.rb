@@ -650,7 +650,15 @@ module ThreeDgcViewer
         present_mode: @present_mode,
         alpha_mode: @alpha_mode
       )
-      @logger.info("Surface format: #{@surface_format}")
+      log_surface_configuration
+    end
+
+    def log_surface_configuration
+      key = [@surface_format, @present_mode, @alpha_mode]
+      return if @logged_surface_configuration == key
+
+      @logger.info("Surface format: #{@surface_format} present_mode=#{@present_mode} alpha_mode=#{@alpha_mode}")
+      @logged_surface_configuration = key
     end
 
     def choose_surface_format(formats)

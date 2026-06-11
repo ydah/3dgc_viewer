@@ -150,6 +150,35 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(output.string).to include("requested present mode :mailbox is unavailable")
   end
 
+  it "logs surface configuration only when it changes" do
+    logger, output = string_logger
+    surface = Class.new do
+      attr_reader :configs
+
+      def initialize
+        @configs = []
+      end
+
+      def capabilities(_adapter)
+        {formats: [:bgra8_unorm], present_modes: [:fifo], alpha_modes: [:auto]}
+      end
+
+      def configure(**kwargs)
+        @configs << kwargs
+      end
+    end.new
+    state = described_class.new(FakeWindow.new(1280, 720), logger: logger)
+    state.instance_variable_set(:@surface, surface)
+    state.instance_variable_set(:@adapter, Object.new)
+    state.instance_variable_set(:@device, Object.new)
+
+    state.send(:configure_surface)
+    state.send(:configure_surface)
+
+    expect(surface.configs.length).to eq(2)
+    expect(output.string.scan("Surface format:").length).to eq(1)
+  end
+
   it "handles fit reset and axis toggle shortcuts" do
     state = described_class.new(FakeWindow.new(1280, 720))
     bounds = ThreeDgcViewer::Gaussian::Bounds.new(
