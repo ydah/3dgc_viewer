@@ -4,6 +4,8 @@ require "rbconfig"
 
 module ThreeDgcViewer
   module LibraryLocator
+    Location = Struct.new(:path, :source, :exists, keyword_init: true)
+
     module_function
 
     def root
@@ -41,6 +43,10 @@ module ThreeDgcViewer
     end
 
     def wgpu_native_path
+      wgpu_native_location.path
+    end
+
+    def wgpu_native_location
       locate(
         env_key: "WGPU_NATIVE_LIB",
         vendor_glob: File.join(root, "vendor", "wgpu-native", platform, "libwgpu_native.*"),
@@ -49,6 +55,10 @@ module ThreeDgcViewer
     end
 
     def glfw_path
+      glfw_location.path
+    end
+
+    def glfw_location
       locate(
         env_key: "GLFW_LIB",
         vendor_glob: File.join(root, "vendor", "glfw", platform, "libglfw*"),
@@ -57,6 +67,10 @@ module ThreeDgcViewer
     end
 
     def surface_shim_path
+      surface_shim_location.path
+    end
+
+    def surface_shim_location
       locate(
         env_key: "THREEDGC_SURFACE_SHIM_LIB",
         vendor_glob: File.join(root, "ext", "3dgc_viewer_native", "3dgc_viewer_surface.{bundle,dylib,so,dll}"),
@@ -70,12 +84,16 @@ module ThreeDgcViewer
 
     def locate(env_key:, vendor_glob:, fallback:)
       env_path = ENV[env_key]
-      return env_path if env_path && !env_path.empty?
+      return location(env_path, :env) if env_path && !env_path.empty?
 
       vendor_path = Dir[vendor_glob].find { |path| File.file?(path) }
-      return vendor_path if vendor_path
+      return location(vendor_path, :vendor) if vendor_path
 
-      fallback
+      location(fallback, :fallback)
+    end
+
+    def location(path, source)
+      Location.new(path: path, source: source, exists: File.file?(path))
     end
 
     def fallback_library_name(base)

@@ -69,7 +69,8 @@ module ThreeDgcViewer
 
       WGPU::SurfaceShim.load!
       @logger.info("wgpu-native: #{::WGPU::Native.library_path}")
-      @logger.info("surface shim: #{LibraryLocator.surface_shim_path}")
+      surface_shim = LibraryLocator.surface_shim_location
+      @logger.info("surface shim: #{surface_shim.path} (#{surface_shim.source}, exists=#{surface_shim.exists})")
 
       @instance = ::WGPU::Instance.new
       surface_ptr = WGPU::SurfaceShim.rbwgv_create_surface(@instance.handle, @window.ptr)

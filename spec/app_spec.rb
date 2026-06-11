@@ -122,4 +122,14 @@ RSpec.describe ThreeDgcViewer::App do
   ensure
     file&.unlink
   end
+
+  it "prints native library locator information without initializing the window" do
+    result = nil
+
+    expect do
+      result = described_class.run(["--print-gpu-info"])
+    end.to output(/platform:/).to_stdout
+
+    expect(result).to eq(0)
+  end
 end

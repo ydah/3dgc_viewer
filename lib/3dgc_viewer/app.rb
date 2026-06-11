@@ -34,7 +34,7 @@ module ThreeDgcViewer
     Options = Struct.new(
       :file, :width, :height, :log_level, :wgpu_native, :glfw, :show_axis,
       :render_width, :render_height, :render_scale, :render_size_window,
-      :max_pairs, :window_only, :validate_ply, :print_scene_info,
+      :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info,
       :hidden, :smoke_frame, :smoke_resize,
       :smoke_camera, :assert_render_nonzero,
       :eye, :target, :up, :fov, :znear, :zfar,
@@ -63,6 +63,7 @@ module ThreeDgcViewer
         window_only: false,
         validate_ply: false,
         print_scene_info: false,
+        print_gpu_info: false,
         hidden: false,
         smoke_frame: false,
         smoke_resize: false,
@@ -128,6 +129,7 @@ module ThreeDgcViewer
         opts.on("--assert-render-nonzero", "Fail if the internal render texture has no non-black RGB pixels") { options.assert_render_nonzero = true }
         opts.on("--validate-ply", "Parse --file and exit") { options.validate_ply = true }
         opts.on("--print-scene-info", "Print parsed scene statistics and exit") { options.print_scene_info = true }
+        opts.on("--print-gpu-info", "Print GPU/native library locator information and exit") { options.print_gpu_info = true }
         opts.on("--version", "Print version") do
           puts VERSION
           exit 0
@@ -281,6 +283,7 @@ module ThreeDgcViewer
       log_startup
       return validate_ply if @options.validate_ply
       return print_scene_info if @options.print_scene_info
+      return print_gpu_info if @options.print_gpu_info
 
       @options.window_only ? run_window_only : run_native
       0
@@ -318,6 +321,15 @@ module ThreeDgcViewer
       end
       puts "opacity_range: #{stats.opacity_min}, #{stats.opacity_max}" if stats.opacity_min && stats.opacity_max
       puts "scale_range: #{stats.scale_min}, #{stats.scale_max}" if stats.scale_min && stats.scale_max
+      0
+    end
+
+    def print_gpu_info
+      puts "platform: #{LibraryLocator.platform}"
+      print_location("wgpu_native", LibraryLocator.wgpu_native_location)
+      print_location("glfw", LibraryLocator.glfw_location)
+      print_location("surface_shim", LibraryLocator.surface_shim_location)
+      puts "shader_dir: #{LibraryLocator.shader_dir}"
       0
     end
 
@@ -447,8 +459,18 @@ module ThreeDgcViewer
       @logger.info("3dgc_viewer")
       @logger.info("Ruby: #{RUBY_DESCRIPTION}")
       @logger.info("Platform: #{LibraryLocator.platform}")
-      @logger.info("wgpu-native: #{LibraryLocator.wgpu_native_path}")
-      @logger.info("GLFW: #{LibraryLocator.glfw_path}")
+      log_location("wgpu-native", LibraryLocator.wgpu_native_location)
+      log_location("GLFW", LibraryLocator.glfw_location)
+    end
+
+    def print_location(name, location)
+      puts "#{name}: #{location.path}"
+      puts "#{name}_source: #{location.source}"
+      puts "#{name}_exists: #{location.exists}"
+    end
+
+    def log_location(name, location)
+      @logger.info("#{name}: #{location.path} (#{location.source}, exists=#{location.exists})")
     end
 
     def logger_level(value)
