@@ -139,6 +139,10 @@ RSpec.describe ThreeDgcViewer::App do
       .to raise_error(OptionParser::InvalidArgument, /does not exist/)
   end
 
+  it "returns a distinct exit code for PLY runtime errors" do
+    expect(described_class.run(%w[--validate-ply])).to eq(3)
+  end
+
   it "prints scene information without initializing the window" do
     file = build_ply_file
     result = nil

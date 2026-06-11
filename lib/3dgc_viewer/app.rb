@@ -36,6 +36,12 @@ module ThreeDgcViewer
       balanced: 32,
       quality: 64
     }.freeze
+    EXIT_RUNTIME_ERROR = 1
+    EXIT_USAGE_ERROR = 2
+    EXIT_PLY_ERROR = 3
+    EXIT_SHADER_ERROR = 4
+    EXIT_WGPU_ERROR = 5
+    EXIT_WINDOW_ERROR = 6
 
     Options = Struct.new(
       :file, :width, :height, :log_level, :wgpu_native, :glfw, :show_axis,
@@ -55,7 +61,7 @@ module ThreeDgcViewer
       new(parse_options(argv)).run
     rescue OptionParser::ParseError => e
       warn "error: #{e.message}"
-      2
+      EXIT_USAGE_ERROR
     end
 
     def self.parse_options(argv)
@@ -336,10 +342,10 @@ module ThreeDgcViewer
       0
     rescue Error => e
       @logger.error(e.message)
-      1
+      exit_code_for(e)
     rescue StandardError => e
       @logger.error(e.message)
-      1
+      EXIT_RUNTIME_ERROR
     end
 
     private
@@ -612,6 +618,16 @@ module ThreeDgcViewer
 
     def monotonic_time
       Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+
+    def exit_code_for(error)
+      case error
+      when PlyError then EXIT_PLY_ERROR
+      when ShaderError then EXIT_SHADER_ERROR
+      when WgpuError then EXIT_WGPU_ERROR
+      when WindowError then EXIT_WINDOW_ERROR
+      else EXIT_RUNTIME_ERROR
+      end
     end
   end
 end
