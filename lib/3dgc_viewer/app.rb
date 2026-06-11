@@ -19,6 +19,17 @@ module ThreeDgcViewer
     MAX_WINDOW_DIMENSION = 32_768
     MAX_RENDER_DIMENSION = 32_768
     MAX_RENDER_SCALE = 4.0
+    POWER_PREFERENCES = {
+      "high-performance" => :high_performance,
+      "high_performance" => :high_performance,
+      "low-power" => :low_power,
+      "low_power" => :low_power
+    }.freeze
+    PRESENT_MODES = {
+      "fifo" => :fifo,
+      "mailbox" => :mailbox,
+      "immediate" => :immediate
+    }.freeze
 
     Options = Struct.new(
       :file, :width, :height, :log_level, :wgpu_native, :glfw, :show_axis,
@@ -26,6 +37,8 @@ module ThreeDgcViewer
       :max_pairs, :window_only, :validate_ply, :print_scene_info,
       :hidden, :smoke_frame, :smoke_resize,
       :smoke_camera, :assert_render_nonzero,
+      :eye, :target, :up, :fov, :znear, :zfar,
+      :time, :time_speed, :pause, :power_preference, :present_mode,
       keyword_init: true
     )
 
@@ -53,7 +66,18 @@ module ThreeDgcViewer
         smoke_frame: false,
         smoke_resize: false,
         smoke_camera: false,
-        assert_render_nonzero: false
+        assert_render_nonzero: false,
+        eye: nil,
+        target: nil,
+        up: nil,
+        fov: 45.0,
+        znear: 0.1,
+        zfar: 10_000.0,
+        time: 0.0,
+        time_speed: Scene::TIME_SPEED,
+        pause: false,
+        power_preference: :high_performance,
+        present_mode: nil
       )
       explicit_render_size = false
 
@@ -73,6 +97,18 @@ module ThreeDgcViewer
         opts.on("--render-scale SCALE", Float, "Scale internal render size from window size") { |value| options.render_scale = value }
         opts.on("--render-size-window", "Keep internal render size in sync with framebuffer size") { options.render_size_window = true }
         opts.on("--max-pairs N", Integer, "Initial pair buffer capacity") { |value| options.max_pairs = value }
+        opts.on("--camera SPEC", "Camera eye:target:up, each as x,y,z") { |value| apply_camera_spec(options, value) }
+        opts.on("--eye X,Y,Z", "Initial camera eye") { |value| options.eye = parse_vec3(value, "--eye") }
+        opts.on("--target X,Y,Z", "Initial camera target") { |value| options.target = parse_vec3(value, "--target") }
+        opts.on("--up X,Y,Z", "Initial camera up vector") { |value| options.up = parse_vec3(value, "--up") }
+        opts.on("--fov DEG", Float, "Vertical field of view in degrees") { |value| options.fov = value }
+        opts.on("--znear N", Float, "Camera near plane") { |value| options.znear = value }
+        opts.on("--zfar N", Float, "Camera far plane") { |value| options.zfar = value }
+        opts.on("--time T", Float, "Initial 4D scene time in [0, 1)") { |value| options.time = value }
+        opts.on("--time-speed N", Float, "4D playback speed multiplier") { |value| options.time_speed = value }
+        opts.on("--pause", "Start 4D playback paused") { options.pause = true }
+        opts.on("--power-preference VALUE", "high-performance/low-power") { |value| options.power_preference = parse_power_preference(value) }
+        opts.on("--present-mode MODE", "fifo/mailbox/immediate") { |value| options.present_mode = parse_present_mode(value) }
         opts.on("--log-level LEVEL", "debug/info/warn/error") { |value| options.log_level = value }
         opts.on("--wgpu-native PATH", "Path to libwgpu_native") { |value| options.wgpu_native = value }
         opts.on("--glfw PATH", "Path to libglfw") { |value| options.glfw = value }
@@ -104,10 +140,43 @@ module ThreeDgcViewer
       validate_dimension("--height", options.height, MAX_WINDOW_DIMENSION)
       validate_dimension("--render-width", options.render_width, MAX_RENDER_DIMENSION)
       validate_dimension("--render-height", options.render_height, MAX_RENDER_DIMENSION)
+      validate_camera_options(options)
+      validate_time_options(options)
       validate_log_level(options.log_level)
       validate_file(options.file) if options.file
       validate_positive_int("--max-pairs", options.max_pairs) if options.max_pairs
       apply_render_scale(options, explicit_render_size: explicit_render_size) if options.render_scale
+    end
+
+    def self.apply_camera_spec(options, value)
+      parts = value.to_s.split(":")
+      raise OptionParser::InvalidArgument, "--camera must be eye:target:up" unless parts.length == 3
+
+      options.eye = parse_vec3(parts[0], "--camera eye")
+      options.target = parse_vec3(parts[1], "--camera target")
+      options.up = parse_vec3(parts[2], "--camera up")
+    end
+
+    def self.parse_vec3(value, name)
+      parts = value.to_s.split(",")
+      raise OptionParser::InvalidArgument, "#{name} must have 3 comma-separated numbers" unless parts.length == 3
+
+      vector = parts.map { |part| Float(part, exception: false) }
+      raise OptionParser::InvalidArgument, "#{name} must contain only finite numbers" unless vector.all? { |number| number&.finite? }
+
+      vector
+    end
+
+    def self.parse_power_preference(value)
+      POWER_PREFERENCES.fetch(value.to_s.downcase) do
+        raise OptionParser::InvalidArgument, "--power-preference must be high-performance or low-power"
+      end
+    end
+
+    def self.parse_present_mode(value)
+      PRESENT_MODES.fetch(value.to_s.downcase) do
+        raise OptionParser::InvalidArgument, "--present-mode must be fifo, mailbox, or immediate"
+      end
     end
 
     def self.validate_dimension(name, value, max)
@@ -123,6 +192,21 @@ module ThreeDgcViewer
       return if LOG_LEVELS.key?(value.to_s.downcase)
 
       raise OptionParser::InvalidArgument, "--log-level must be one of: debug, info, warn, error"
+    end
+
+    def self.validate_camera_options(options)
+      raise OptionParser::InvalidArgument, "--fov must be > 0 and < 180" unless options.fov.to_f.positive? && options.fov.to_f < 180.0
+      raise OptionParser::InvalidArgument, "--znear must be positive" unless options.znear.to_f.positive?
+      raise OptionParser::InvalidArgument, "--zfar must be positive" unless options.zfar.to_f.positive?
+      raise OptionParser::InvalidArgument, "--znear must be less than --zfar" unless options.znear.to_f < options.zfar.to_f
+
+      up = options.up || [0.0, 1.0, 0.0]
+      raise OptionParser::InvalidArgument, "--up must not be zero length" if Math3D::Vec3.length(up) < Math3D::EPSILON
+    end
+
+    def self.validate_time_options(options)
+      raise OptionParser::InvalidArgument, "--time must be finite" unless options.time.to_f.finite?
+      raise OptionParser::InvalidArgument, "--time-speed must be finite" unless options.time_speed.to_f.finite?
     end
 
     def self.validate_file(path)
@@ -212,7 +296,13 @@ module ThreeDgcViewer
         show_axis: @options.show_axis,
         render_width: @options.render_width,
         render_height: @options.render_height,
-        follow_window_render_size: @options.render_size_window
+        follow_window_render_size: @options.render_size_window,
+        initial_camera: build_initial_camera(window),
+        initial_time: @options.time,
+        time_speed: @options.time_speed,
+        time_paused: @options.pause,
+        power_preference: @options.power_preference,
+        present_mode: @options.present_mode
       )
       install_state_callbacks(window, state)
       state.initialize_gpu
@@ -229,6 +319,17 @@ module ThreeDgcViewer
 
     def create_window(title:)
       Window::GLFW.new(width: @options.width, height: @options.height, title: title, visible: !@options.hidden)
+    end
+
+    def build_initial_camera(window)
+      camera = Camera.default(width: window.width, height: window.height)
+      camera.eye = @options.eye if @options.eye
+      camera.target = @options.target if @options.target
+      camera.up = @options.up if @options.up
+      camera.fovy = @options.fov
+      camera.znear = @options.znear
+      camera.zfar = @options.zfar
+      camera
     end
 
     def install_window_only_callbacks(window)

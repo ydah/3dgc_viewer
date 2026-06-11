@@ -47,6 +47,32 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.render_height).to eq(180)
   end
 
+  it "parses camera and playback options" do
+    options = described_class.parse_options(%w[
+      --camera 1,2,3:4,5,6:0,1,0
+      --fov 60
+      --znear 0.2
+      --zfar 200
+      --time 0.25
+      --time-speed 2.5
+      --pause
+      --power-preference low-power
+      --present-mode mailbox
+    ])
+
+    expect(options.eye).to eq([1.0, 2.0, 3.0])
+    expect(options.target).to eq([4.0, 5.0, 6.0])
+    expect(options.up).to eq([0.0, 1.0, 0.0])
+    expect(options.fov).to eq(60.0)
+    expect(options.znear).to eq(0.2)
+    expect(options.zfar).to eq(200.0)
+    expect(options.time).to eq(0.25)
+    expect(options.time_speed).to eq(2.5)
+    expect(options.pause).to eq(true)
+    expect(options.power_preference).to eq(:low_power)
+    expect(options.present_mode).to eq(:mailbox)
+  end
+
   it "rejects invalid log level" do
     expect { described_class.parse_options(%w[--log-level trace]) }
       .to raise_error(OptionParser::InvalidArgument, /log-level/)
@@ -55,6 +81,13 @@ RSpec.describe ThreeDgcViewer::App do
   it "rejects invalid dimensions" do
     expect { described_class.parse_options(%w[--width 0]) }
       .to raise_error(OptionParser::InvalidArgument, /width/)
+  end
+
+  it "rejects invalid camera options" do
+    expect { described_class.parse_options(%w[--fov 180]) }
+      .to raise_error(OptionParser::InvalidArgument, /fov/)
+    expect { described_class.parse_options(%w[--up 0,0,0]) }
+      .to raise_error(OptionParser::InvalidArgument, /up/)
   end
 
   it "checks startup file paths during option parsing" do

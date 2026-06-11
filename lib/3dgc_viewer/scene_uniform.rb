@@ -36,8 +36,12 @@ module ThreeDgcViewer
       @screen_size = [positive_int(width), positive_int(height)]
     end
 
-    def update_time(dt_sec)
-      @time = (@time + (dt_sec.to_f * Scene::TIME_SPEED)) % 1.0
+    def update_time(dt_sec, speed: Scene::TIME_SPEED)
+      @time = (@time + (dt_sec.to_f * speed.to_f)) % 1.0
+    end
+
+    def set_time(value)
+      @time = value.to_f % 1.0
     end
 
     def pack

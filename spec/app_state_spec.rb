@@ -55,6 +55,27 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(state.camera.zfar).to be > state.camera.znear
   end
 
+  it "uses configured initial camera and time controls" do
+    camera = ThreeDgcViewer::Camera.default(width: 1280, height: 720)
+    camera.eye = [1.0, 2.0, 3.0]
+    camera.target = [4.0, 5.0, 6.0]
+    camera.fovy = 60.0
+    state = described_class.new(
+      FakeWindow.new(1280, 720),
+      initial_camera: camera,
+      initial_time: 0.25,
+      time_speed: 2.0,
+      time_paused: true
+    )
+
+    expect(state.camera.eye).to eq([1.0, 2.0, 3.0])
+    expect(state.camera.target).to eq([4.0, 5.0, 6.0])
+    expect(state.camera.fovy).to eq(60.0)
+    expect(state.scene_uniform.time).to eq(0.25)
+    expect(state.time_speed).to eq(2.0)
+    expect(state.time_paused).to eq(true)
+  end
+
   it "handles fit reset and axis toggle shortcuts" do
     state = described_class.new(FakeWindow.new(1280, 720))
     bounds = ThreeDgcViewer::Gaussian::Bounds.new(

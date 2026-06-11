@@ -51,6 +51,15 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
     expect(uniform.screen_size).to eq([321, 181])
   end
 
+  it "updates SceneUniform time with runtime playback speed" do
+    uniform = ThreeDgcViewer::SceneUniform.new
+
+    uniform.set_time(0.25)
+    uniform.update_time(0.5, speed: 2.0)
+
+    expect(uniform.time).to eq(0.25)
+  end
+
   it "packs fixed GPU helper structures to expected byte sizes" do
     expect(described_class.u32(80, 45, 1024, 0).bytesize).to eq(16)
     expect(described_class.u32(1, 2, 3, 0).bytesize).to eq(16)

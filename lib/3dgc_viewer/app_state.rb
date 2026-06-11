@@ -18,15 +18,21 @@ module ThreeDgcViewer
     GPU_MEMORY_WARNING_BYTES = 4 * 1024 * 1024 * 1024
 
     attr_reader :window, :scene_type, :resources, :camera, :scene_uniform, :show_axis,
-                :render_width, :render_height
+                :render_width, :render_height, :time_speed, :time_paused
 
     def initialize(window, logger: Logger.new($stderr), show_axis: true,
                    render_width: Scene::SCREEN_WIDTH, render_height: Scene::SCREEN_HEIGHT,
-                   follow_window_render_size: false)
+                   follow_window_render_size: false, initial_camera: nil,
+                   initial_time: 0.0, time_speed: Scene::TIME_SPEED, time_paused: false,
+                   power_preference: :high_performance, present_mode: nil)
       @window = window
       @logger = logger
       @show_axis = show_axis
       @follow_window_render_size = follow_window_render_size
+      @time_speed = time_speed.to_f
+      @time_paused = time_paused
+      @power_preference = power_preference
+      @requested_present_mode = present_mode
       @render_width = positive_int(render_width)
       @render_height = positive_int(render_height)
       sync_render_size_to_window if @follow_window_render_size
@@ -41,11 +47,13 @@ module ThreeDgcViewer
       @last_update_time = monotonic_time
       @fps_timer = monotonic_time
       @frame_count = 0
-      @camera = Camera.default(width: window.width, height: window.height)
+      @default_camera = copy_camera(initial_camera || Camera.default(width: window.width, height: window.height))
+      @camera = copy_camera(@default_camera)
       @camera_controller = CameraController.new
       @camera_controller.sync_from_camera(@camera)
       @scene_uniform = SceneUniform.new(screen_width: @render_width, screen_height: @render_height)
       @scene_uniform.update_camera(@camera)
+      @scene_uniform.set_time(initial_time)
       @resources = build_gaussian_resources(Gaussian::GaussianSet.new(kind: :gaussian3d, items: []))
     end
 
@@ -61,7 +69,7 @@ module ThreeDgcViewer
       raise WgpuError, "surface shim returned null surface" if surface_ptr.null?
 
       @surface = ::WGPU::Surface.new(surface_ptr, @instance)
-      @adapter = @instance.request_adapter(power_preference: :high_performance, compatible_surface: @surface)
+      @adapter = @instance.request_adapter(power_preference: @power_preference, compatible_surface: @surface)
       @device = @adapter.request_device
       @queue = @device.queue
       @logger.info("Adapter: #{@adapter.info.inspect}") if @adapter.respond_to?(:info)
@@ -139,7 +147,7 @@ module ThreeDgcViewer
       @scene_dirty = true if @camera_controller.update_camera(@camera, dt) == :active
       @scene_uniform.update_camera(@camera)
       @scene_uniform.update_gaussian_count(@resources.gaussian_count)
-      @scene_uniform.update_time(dt) if Scene.dynamic?(@scene_type)
+      @scene_uniform.update_time(dt, speed: @time_speed) if Scene.dynamic?(@scene_type) && !@time_paused
       @queue&.write_buffer(@scene_uniform_buffer, 0, @scene_uniform.pack) if @scene_uniform_buffer
     end
 
@@ -273,10 +281,22 @@ module ThreeDgcViewer
     end
 
     def reset_camera
-      @camera = Camera.default(width: @window.width, height: @window.height)
+      @camera = copy_camera(@default_camera)
       @camera_controller = CameraController.new
       @camera_controller.sync_from_camera(@camera)
       @scene_uniform.update_camera(@camera)
+    end
+
+    def copy_camera(camera)
+      Camera.new(
+        eye: camera.eye.dup,
+        target: camera.target.dup,
+        up: camera.up.dup,
+        aspect: camera.aspect,
+        fovy: camera.fovy,
+        znear: camera.znear,
+        zfar: camera.zfar
+      )
     end
 
     def resize_render_target(width, height)
@@ -355,7 +375,7 @@ module ThreeDgcViewer
       height = [height, 1].max
       caps = @surface.capabilities(@adapter)
       @surface_format = choose_surface_format(caps[:formats])
-      @present_mode = caps[:present_modes].first || :fifo
+      @present_mode = choose_present_mode(caps[:present_modes])
       @alpha_mode = caps[:alpha_modes].first || :auto
       @surface.configure(
         device: @device,
@@ -375,6 +395,12 @@ module ThreeDgcViewer
         formats.find { |format| !format.to_s.include?("srgb") } ||
         formats.first ||
         :bgra8_unorm
+    end
+
+    def choose_present_mode(modes)
+      return @requested_present_mode if @requested_present_mode && modes.include?(@requested_present_mode)
+
+      modes.first || :fifo
     end
 
     def create_render_targets
