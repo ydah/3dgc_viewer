@@ -2,6 +2,7 @@
 
 require "logger"
 require_relative "binary_pack"
+require_relative "byte_size"
 require_relative "camera"
 require_relative "frame_statistics"
 require_relative "gaussian"
@@ -493,20 +494,7 @@ module ThreeDgcViewer
     def log_resource_estimate
       bytes = @resources.estimated_buffer_bytes
       level = bytes > GPU_MEMORY_WARNING_BYTES ? :warn : :info
-      @logger.public_send(level, "GPU buffer estimate: #{format_bytes(bytes)}")
-    end
-
-    def format_bytes(bytes)
-      units = %w[B KiB MiB GiB TiB]
-      value = bytes.to_f
-      unit = units.first
-      units.each do |candidate|
-        unit = candidate
-        break if value < 1024.0 || candidate == units.last
-
-        value /= 1024.0
-      end
-      "#{value.round(1)} #{unit}"
+      @logger.public_send(level, "GPU buffer estimate: #{ByteSize.format(bytes)}")
     end
 
     def fps_log_message(frame_stats)

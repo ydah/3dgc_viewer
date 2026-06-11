@@ -5,6 +5,7 @@ require "optparse"
 require "json"
 require "time"
 require_relative "app_state"
+require_relative "byte_size"
 require_relative "camera_bookmarks"
 require_relative "camera_preset"
 require_relative "controls_help"
@@ -714,7 +715,7 @@ module ThreeDgcViewer
         render_height: resources.render_height,
         max_pairs: resources.max_pairs,
         gpu_buffer_bytes: resources.estimated_buffer_bytes,
-        gpu_buffer_human: format_bytes(resources.estimated_buffer_bytes)
+        gpu_buffer_human: ByteSize.format(resources.estimated_buffer_bytes)
       }
     end
 
@@ -736,19 +737,6 @@ module ThreeDgcViewer
       return nil unless min && max
 
       [min, max]
-    end
-
-    def format_bytes(bytes)
-      units = %w[B KiB MiB GiB TiB]
-      value = bytes.to_f
-      unit = units.first
-      units.each do |candidate|
-        unit = candidate
-        break if value < 1024.0 || candidate == units.last
-
-        value /= 1024.0
-      end
-      "#{value.round(1)} #{unit}"
     end
 
     def run_window_only
