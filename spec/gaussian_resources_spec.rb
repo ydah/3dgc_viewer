@@ -52,6 +52,22 @@ RSpec.describe ThreeDgcViewer::GaussianResources do
     expect(resources.buffer_specs.find { |spec| spec.name == :tile_ranges_buffer }.size).to eq(8 * 252)
   end
 
+  it "updates render size without reallocating when tile grid is unchanged" do
+    set = ThreeDgcViewer::Gaussian::GaussianSet.new(kind: :gaussian3d, items: [])
+    resources = described_class.new(gaussian_set: set, render_width: 320, render_height: 180)
+    specs = resources.buffer_specs
+
+    expect(resources.same_tile_grid?(319, 179)).to eq(true)
+    expect(resources.resize_render_size!(319, 179)).to equal(resources)
+    expect(resources.render_width).to eq(319)
+    expect(resources.render_height).to eq(179)
+    expect(resources.tiles_width).to eq(20)
+    expect(resources.tiles_height).to eq(12)
+    expect(resources.buffer_specs).to equal(specs)
+    expect(resources.same_tile_grid?(321, 179)).to eq(false)
+    expect { resources.resize_render_size!(321, 179) }.to raise_error(ArgumentError, /tile grid/)
+  end
+
   it "allows pair buffer capacity to grow beyond the default" do
     set = ThreeDgcViewer::Gaussian::GaussianSet.new(kind: :gaussian3d, items: [])
     resources = described_class.new(gaussian_set: set, max_pairs: 4096)

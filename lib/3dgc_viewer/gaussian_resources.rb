@@ -61,8 +61,7 @@ module ThreeDgcViewer
       @radix_histogram_len = @radix_num_workgroups * Gaussian::RADIX_SORT_BINS
       @render_width = positive_int(render_width)
       @render_height = positive_int(render_height)
-      @tiles_width = ceil_div(@render_width, Scene::TILE_W)
-      @tiles_height = ceil_div(@render_height, Scene::TILE_H)
+      @tiles_width, @tiles_height = tile_dimensions(@render_width, @render_height)
       @tile_count = @tiles_width * @tiles_height
       @buffer_specs = build_buffer_specs
       @estimated_buffer_bytes = @buffer_specs.sum(&:size)
@@ -73,6 +72,19 @@ module ThreeDgcViewer
     def release
       @buffers.each_value { |buffer| buffer.release if buffer.respond_to?(:release) }
       @buffers.clear
+    end
+
+    def same_tile_grid?(render_width, render_height)
+      tiles_width, tiles_height = tile_dimensions(render_width, render_height)
+      @tiles_width == tiles_width && @tiles_height == tiles_height
+    end
+
+    def resize_render_size!(render_width, render_height)
+      raise ArgumentError, "render size changes tile grid" unless same_tile_grid?(render_width, render_height)
+
+      @render_width = positive_int(render_width)
+      @render_height = positive_int(render_height)
+      self
     end
 
     BUFFER_NAMES.each { |name| define_method(name) { @buffers[name] } }
@@ -92,6 +104,13 @@ module ThreeDgcViewer
 
     def positive_int(value)
       [value.to_i, 1].max
+    end
+
+    def tile_dimensions(render_width, render_height)
+      [
+        ceil_div(positive_int(render_width), Scene::TILE_W),
+        ceil_div(positive_int(render_height), Scene::TILE_H)
+      ]
     end
 
     def build_buffer_specs

@@ -249,6 +249,40 @@ RSpec.describe ThreeDgcViewer::AppState do
       .to raise_error(ThreeDgcViewer::WgpuError, /readback size/)
   end
 
+  it "reuses gaussian resources when render resize keeps the same tile grid" do
+    pass_class = Class.new do
+      attr_reader :calls
+
+      def initialize
+        @calls = []
+      end
+
+      def recreate_bind_group(**kwargs)
+        @calls << kwargs
+      end
+    end
+    state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger, render_width: 320, render_height: 180)
+    resources = state.resources
+    tile_pass = pass_class.new
+    screen_pass = pass_class.new
+    state.instance_variable_set(:@device, Object.new)
+    state.instance_variable_set(:@tile_render_pass, tile_pass)
+    state.instance_variable_set(:@screen_blit_pass, screen_pass)
+    state.define_singleton_method(:recreate_render_texture) do
+      @render_texture_view = :new_view
+      @render_texture_sampler = :new_sampler
+    end
+    state.define_singleton_method(:replace_gaussians) { |_gaussian_set, **_kwargs| raise "should not replace resources" }
+
+    state.send(:resize_render_target, 319, 179)
+
+    expect(state.resources).to equal(resources)
+    expect(resources.render_width).to eq(319)
+    expect(resources.render_height).to eq(179)
+    expect(tile_pass.calls.first).to include(resources: resources, render_texture_view: :new_view)
+    expect(screen_pass.calls.first).to include(resources: resources, render_texture_view: :new_view, render_texture_sampler: :new_sampler)
+  end
+
   it "skips GPU rendering while the framebuffer is occluded" do
     state = described_class.new(FakeWindow.new(0, 0), logger: quiet_logger)
     state.instance_variable_set(:@is_surface_configured, true)

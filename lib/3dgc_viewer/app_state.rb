@@ -481,11 +481,29 @@ module ThreeDgcViewer
       @queue&.write_buffer(@scene_uniform_buffer, 0, @scene_uniform.pack) if @scene_uniform_buffer
       return unless @device
 
-      gaussian_set = @resources.gaussian_set
-      max_pairs = @resources.max_pairs
+      same_tile_grid = @resources.same_tile_grid?(width, height)
       recreate_render_texture
-      replace_gaussians(gaussian_set, max_pairs: max_pairs, auto_fit: false)
+      if same_tile_grid
+        @resources.resize_render_size!(width, height)
+        recreate_render_texture_bindings
+        @scene_dirty = true
+      else
+        replace_gaussians(@resources.gaussian_set, max_pairs: @resources.max_pairs, auto_fit: false)
+      end
       @logger.info("render size: #{@render_width}x#{@render_height}")
+    end
+
+    def recreate_render_texture_bindings
+      @tile_render_pass&.recreate_bind_group(
+        resources: @resources,
+        scene_uniform_buffer: @scene_uniform_buffer,
+        render_texture_view: @render_texture_view
+      )
+      @screen_blit_pass&.recreate_bind_group(
+        resources: @resources,
+        render_texture_view: @render_texture_view,
+        render_texture_sampler: @render_texture_sampler
+      )
     end
 
     def fit_camera_to_scene(bounds)
