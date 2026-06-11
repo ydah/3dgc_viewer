@@ -10,7 +10,10 @@ module ThreeDgcViewer
     MAX_HEADER_BYTES = 1 * 1024 * 1024
     MAX_VERTEX_COUNT = 100_000_000
     MAX_VERTEX_STRIDE = 64 * 1024
+    MAX_ELEMENTS = 1024
     MAX_VERTEX_PROPERTIES = 512
+    MAX_ELEMENT_PROPERTIES = 512
+    MAX_ELEMENT_NAME_BYTES = 256
     MAX_PROPERTY_NAME_BYTES = 256
     MAX_LIST_VALUES = 1_000_000
     MAX_SH_DEGREE = 3
@@ -221,6 +224,8 @@ module ThreeDgcViewer
         when "format"
           format = parse_format(tokens)
         when "element"
+          raise PlyError, "too many PLY elements" if elements.length >= MAX_ELEMENTS
+
           current_element = parse_element(tokens)
           elements << current_element
           in_vertex = current_element.name == "vertex"
@@ -235,6 +240,11 @@ module ThreeDgcViewer
           end
         when "property"
           raise PlyError, "PLY property appears before any element" unless current_element
+          if in_vertex
+            raise PlyError, "too many PLY vertex properties" if current_element.properties.length >= MAX_VERTEX_PROPERTIES
+          elsif current_element.properties.length >= MAX_ELEMENT_PROPERTIES
+            raise PlyError, "too many PLY properties for element #{current_element.name}"
+          end
 
           body_property = parse_body_property(tokens)
           current_element.properties << body_property
@@ -283,9 +293,10 @@ module ThreeDgcViewer
     end
 
     def parse_element(tokens)
-      raise PlyError, "invalid element line" unless tokens.length >= 3
+      raise PlyError, "invalid element line" unless tokens.length == 3
 
       name = tokens[1]
+      raise PlyError, "PLY element name is too long" if name.bytesize > MAX_ELEMENT_NAME_BYTES
       count = Integer(tokens[2], exception: false) || raise(PlyError, "invalid element count: #{tokens[2].inspect}")
       raise PlyError, "element count must be non-negative" if count.negative?
       raise PlyError, "element count exceeds #{MAX_VERTEX_COUNT}" if count > MAX_VERTEX_COUNT
@@ -295,7 +306,7 @@ module ThreeDgcViewer
 
     def parse_body_property(tokens)
       if tokens[1] == "list"
-        raise PlyError, "invalid list property line" unless tokens.length >= 5
+        raise PlyError, "invalid list property line" unless tokens.length == 5
 
         count_scalar = SCALAR_TYPES[tokens[2]]
         value_scalar = SCALAR_TYPES[tokens[3]]
@@ -313,7 +324,7 @@ module ThreeDgcViewer
         )
       end
 
-      raise PlyError, "invalid property line" unless tokens.length >= 3
+      raise PlyError, "invalid property line" unless tokens.length == 3
 
       scalar = SCALAR_TYPES[tokens[1]]
       raise PlyError, "unsupported PLY scalar type: #{tokens[1]}" unless scalar
@@ -324,7 +335,7 @@ module ThreeDgcViewer
 
     def parse_property(tokens, offset, index)
       raise PlyError, "property list in vertex is not supported" if tokens[1] == "list"
-      raise PlyError, "invalid property line" unless tokens.length >= 3
+      raise PlyError, "invalid property line" unless tokens.length == 3
 
       scalar = SCALAR_TYPES[tokens[1]]
       raise PlyError, "unsupported PLY scalar type: #{tokens[1]}" unless scalar

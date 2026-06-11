@@ -377,6 +377,43 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
       .to raise_error(ThreeDgcViewer::PlyError, /property name is too long/)
   end
 
+  it "rejects excessively long PLY element names" do
+    name = "x" * (described_class::MAX_ELEMENT_NAME_BYTES + 1)
+    bytes = "ply\nformat binary_little_endian 1.0\nelement #{name} 0\nend_header\n"
+
+    expect { described_class.parse_bytes(bytes) }
+      .to raise_error(ThreeDgcViewer::PlyError, /element name is too long/)
+  end
+
+  it "rejects excessive PLY element counts" do
+    header = +"ply\nformat binary_little_endian 1.0\n"
+    (described_class::MAX_ELEMENTS + 1).times do |index|
+      header << "element ignored_#{index} 0\n"
+    end
+    header << "end_header\n"
+
+    expect { described_class.parse_bytes(header.b) }
+      .to raise_error(ThreeDgcViewer::PlyError, /too many PLY elements/)
+  end
+
+  it "rejects excessive non-vertex PLY property counts" do
+    header = +"ply\nformat binary_little_endian 1.0\nelement camera 1\n"
+    (described_class::MAX_ELEMENT_PROPERTIES + 1).times do |index|
+      header << "property float p_#{index}\n"
+    end
+    header << "element vertex 0\nend_header\n"
+
+    expect { described_class.parse_bytes(header.b) }
+      .to raise_error(ThreeDgcViewer::PlyError, /too many PLY properties for element camera/)
+  end
+
+  it "rejects malformed PLY property lines with trailing tokens" do
+    bytes = "ply\nformat binary_little_endian 1.0\nelement vertex 1\nproperty float x trailing\nend_header\n"
+
+    expect { described_class.parse_bytes(bytes.b) }
+      .to raise_error(ThreeDgcViewer::PlyError, /invalid property line/)
+  end
+
   it "rejects excessive PLY vertex property counts" do
     header = +"ply\nformat binary_little_endian 1.0\nelement vertex 1\n"
     (described_class::MAX_VERTEX_PROPERTIES + 1).times do |index|
