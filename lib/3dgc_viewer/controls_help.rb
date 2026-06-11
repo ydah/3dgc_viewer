@@ -11,6 +11,7 @@ module ThreeDgcViewer
       ["Left mouse drag", "Orbit camera"],
       ["Right or middle mouse drag", "Pan camera"],
       ["Mouse wheel or trackpad scroll", "Zoom camera"],
+      ["Space", "Toggle playback pause"],
       ["F", "Fit view to scene"],
       ["R", "Reset camera"],
       ["T", "Toggle turntable animation"],

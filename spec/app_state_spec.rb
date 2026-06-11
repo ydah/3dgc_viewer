@@ -136,6 +136,16 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(state.turntable_enabled).to eq(true)
   end
 
+  it "toggles playback pause from the keyboard shortcut" do
+    state = described_class.new(FakeWindow.new(1280, 720), time_paused: false)
+
+    state.handle_key(ThreeDgcViewer::Window::Keymap::KEY_SPACE, ThreeDgcViewer::Window::GLFW::GLFW_PRESS)
+    expect(state.time_paused).to eq(true)
+
+    state.handle_key(ThreeDgcViewer::Window::Keymap::KEY_SPACE, ThreeDgcViewer::Window::GLFW::GLFW_PRESS)
+    expect(state.time_paused).to eq(false)
+  end
+
   it "handles mouse orbit pan and scroll events" do
     state = described_class.new(FakeWindow.new(1280, 720))
     initial_eye = state.camera.eye

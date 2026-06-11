@@ -362,6 +362,8 @@ module ThreeDgcViewer
         return reload_scene
       when Window::Keymap::KEY_R
         reset_camera
+      when Window::Keymap::KEY_SPACE
+        @time_paused = !@time_paused
       when Window::Keymap::KEY_T
         toggle_turntable
       when Window::Keymap::KEY_X
