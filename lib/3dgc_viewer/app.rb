@@ -5,6 +5,7 @@ require "optparse"
 require "json"
 require "time"
 require_relative "app_state"
+require_relative "camera_bookmarks"
 require_relative "camera_preset"
 require_relative "controls_help"
 require_relative "ply_loader"
@@ -52,7 +53,8 @@ module ThreeDgcViewer
       :render_width, :render_height, :render_scale, :render_size_window,
       :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info, :print_controls,
       :print_recent_files, :recent_files, :recent_files_path,
-      :camera_preset, :save_camera_preset,
+      :camera_preset, :save_camera_preset, :camera_bookmarks, :camera_bookmark,
+      :save_camera_bookmark, :print_camera_bookmarks,
       :log_json, :debug_errors,
       :hidden, :smoke_frame, :smoke_resize,
       :smoke_camera, :assert_render_nonzero,
@@ -92,6 +94,10 @@ module ThreeDgcViewer
         recent_files_path: nil,
         camera_preset: nil,
         save_camera_preset: nil,
+        camera_bookmarks: nil,
+        camera_bookmark: nil,
+        save_camera_bookmark: nil,
+        print_camera_bookmarks: false,
         log_json: false,
         debug_errors: false,
         hidden: false,
@@ -148,6 +154,10 @@ module ThreeDgcViewer
         opts.on("--camera SPEC", "Camera eye:target:up, each as x,y,z") { |value| apply_camera_spec(options, value) }
         opts.on("--camera-preset PATH", "Load initial camera from JSON preset") { |value| apply_camera_preset(options, value) }
         opts.on("--save-camera-preset PATH", "Write the initial camera JSON preset and exit") { |value| options.save_camera_preset = value }
+        opts.on("--camera-bookmarks PATH", "Read/write named camera bookmark JSON") { |value| options.camera_bookmarks = value }
+        opts.on("--camera-bookmark NAME", "Load initial camera from named bookmark") { |value| options.camera_bookmark = value }
+        opts.on("--save-camera-bookmark NAME", "Write the initial camera as named bookmark and exit") { |value| options.save_camera_bookmark = value }
+        opts.on("--print-camera-bookmarks", "Print camera bookmark names and exit") { options.print_camera_bookmarks = true }
         opts.on("--eye X,Y,Z", "Initial camera eye") { |value| options.eye = parse_vec3(value, "--eye") }
         opts.on("--target X,Y,Z", "Initial camera target") { |value| options.target = parse_vec3(value, "--target") }
         opts.on("--up X,Y,Z", "Initial camera up vector") { |value| options.up = parse_vec3(value, "--up") }
@@ -208,6 +218,7 @@ module ThreeDgcViewer
         end
       end
       parser.parse!(argv)
+      apply_camera_bookmark_if_requested(options)
       validate_options(options, explicit_render_size: explicit_render_size)
       options
     end
@@ -223,6 +234,7 @@ module ThreeDgcViewer
       validate_log_level(options.log_level)
       validate_file(options.file, option_name: "--file") if options.file
       validate_output_file("--save-camera-preset", options.save_camera_preset) if options.save_camera_preset
+      validate_camera_bookmark_options(options)
       validate_positive_int("--max-pairs", options.max_pairs) if options.max_pairs
       validate_positive_int("--benchmark", options.benchmark) if options.benchmark
       validate_screenshot_path(options.screenshot) if options.screenshot
@@ -247,6 +259,19 @@ module ThreeDgcViewer
       options.camera_preset = path
     rescue ArgumentError => e
       raise OptionParser::InvalidArgument, "--camera-preset #{e.message}"
+    end
+
+    def self.apply_camera_bookmark_if_requested(options)
+      return unless options.camera_bookmark
+      raise OptionParser::InvalidArgument, "--camera-bookmark requires --camera-bookmarks" unless options.camera_bookmarks
+
+      validate_file(options.camera_bookmarks, option_name: "--camera-bookmarks")
+      CameraPreset.apply_to_options(
+        options,
+        CameraBookmarks.fetch_file(options.camera_bookmarks, options.camera_bookmark)
+      )
+    rescue ArgumentError => e
+      raise OptionParser::InvalidArgument, "--camera-bookmark #{e.message}"
     end
 
     def self.parse_vec3(value, name)
@@ -414,6 +439,20 @@ module ThreeDgcViewer
       raise OptionParser::InvalidArgument, "--recent-files must not be empty"
     end
 
+    def self.validate_camera_bookmark_options(options)
+      if options.camera_bookmark && options.camera_preset
+        raise OptionParser::InvalidArgument, "--camera-bookmark cannot be combined with --camera-preset"
+      end
+      if options.print_camera_bookmarks
+        raise OptionParser::InvalidArgument, "--print-camera-bookmarks requires --camera-bookmarks" unless options.camera_bookmarks
+        validate_file(options.camera_bookmarks, option_name: "--camera-bookmarks")
+      end
+      if options.save_camera_bookmark
+        raise OptionParser::InvalidArgument, "--save-camera-bookmark requires --camera-bookmarks" unless options.camera_bookmarks
+        validate_output_file("--camera-bookmarks", options.camera_bookmarks)
+      end
+    end
+
     def self.format_frame_sequence_path(pattern, index)
       format(pattern, index)
     end
@@ -447,7 +486,9 @@ module ThreeDgcViewer
       return print_gpu_info if @options.print_gpu_info
       return print_controls if @options.print_controls
       return print_recent_files if @options.print_recent_files
+      return print_camera_bookmarks if @options.print_camera_bookmarks
       return save_camera_preset if @options.save_camera_preset
+      return save_camera_bookmark if @options.save_camera_bookmark
 
       @options.window_only ? run_window_only : run_native
       0
@@ -523,6 +564,25 @@ module ThreeDgcViewer
       CameraPreset.write_file(@options.save_camera_preset, camera)
       @logger.info("camera preset saved: #{@options.save_camera_preset}")
       0
+    end
+
+    def print_camera_bookmarks
+      names = CameraBookmarks.names_file(@options.camera_bookmarks)
+      return puts_json(names) if @options.json
+
+      puts names
+      0
+    rescue ArgumentError => e
+      raise Error, e.message
+    end
+
+    def save_camera_bookmark
+      camera = build_initial_camera_for_size(@options.width, @options.height)
+      CameraBookmarks.write_file(@options.camera_bookmarks, @options.save_camera_bookmark, camera)
+      @logger.info("camera bookmark saved: #{@options.save_camera_bookmark}")
+      0
+    rescue ArgumentError => e
+      raise Error, e.message
     end
 
     def puts_json(value)

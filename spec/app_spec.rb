@@ -133,6 +133,46 @@ RSpec.describe ThreeDgcViewer::App do
     preset&.unlink
   end
 
+  it "loads a named camera bookmark during option parsing" do
+    bookmarks = Tempfile.new(["bookmarks", ".json"])
+    bookmarks.write(JSON.generate(
+      "front" => {
+        "eye" => [9.0, 8.0, 7.0],
+        "target" => [6.0, 5.0, 4.0],
+        "up" => [0.0, 1.0, 0.0],
+        "fov" => 35.0
+      }
+    ))
+    bookmarks.close
+
+    options = described_class.parse_options(["--camera-bookmarks", bookmarks.path, "--camera-bookmark", "front"])
+
+    expect(options.eye).to eq([9.0, 8.0, 7.0])
+    expect(options.target).to eq([6.0, 5.0, 4.0])
+    expect(options.fov).to eq(35.0)
+  ensure
+    bookmarks&.unlink
+  end
+
+  it "saves and prints camera bookmarks" do
+    bookmarks = Tempfile.new(["bookmarks", ".json"])
+    bookmarks.close
+
+    save_result = described_class.run([
+      "--camera-bookmarks", bookmarks.path,
+      "--save-camera-bookmark", "front",
+      "--eye", "1,2,3"
+    ])
+    output = capture_stdout do
+      described_class.run(["--camera-bookmarks", bookmarks.path, "--print-camera-bookmarks", "--json"])
+    end
+
+    expect(save_result).to eq(0)
+    expect(JSON.parse(output)).to eq(["front"])
+  ensure
+    bookmarks&.unlink
+  end
+
   it "rejects invalid log level" do
     expect { described_class.parse_options(%w[--log-level trace]) }
       .to raise_error(OptionParser::InvalidArgument, /log-level/)
