@@ -649,6 +649,10 @@ module ThreeDgcViewer
       if diagnostics[:wgpu_gem][:load_error]
         puts "wgpu_gem_load_error: #{diagnostics[:wgpu_gem][:load_error]}"
       end
+      puts "windowing_hint: #{diagnostics[:windowing][:hint]}"
+      puts "display: #{diagnostics[:windowing][:display] || "<unset>"}"
+      puts "wayland_display: #{diagnostics[:windowing][:wayland_display] || "<unset>"}"
+      puts "xdg_session_type: #{diagnostics[:windowing][:xdg_session_type] || "<unset>"}"
       puts "shader_dir: #{diagnostics[:shader_dir][:path]}"
       puts "shader_dir_exists: #{diagnostics[:shader_dir][:exists]}"
       0
@@ -777,6 +781,7 @@ module ThreeDgcViewer
         wgpu_gem: wgpu_gem_hash(wgpu_native_location),
         glfw: location_hash(LibraryLocator.glfw_location),
         surface_shim: location_hash(LibraryLocator.surface_shim_location),
+        windowing: windowing_hash,
         shader_dir: {
           path: LibraryLocator.shader_dir,
           exists: Dir.exist?(LibraryLocator.shader_dir)
@@ -786,6 +791,15 @@ module ThreeDgcViewer
 
     def location_hash(location)
       {path: location.path, source: location.source, exists: location.exists}
+    end
+
+    def windowing_hash
+      {
+        hint: Window::GLFW.platform_hint,
+        display: ENV["DISPLAY"],
+        wayland_display: ENV["WAYLAND_DISPLAY"],
+        xdg_session_type: ENV["XDG_SESSION_TYPE"]
+      }
     end
 
     def wgpu_gem_hash(wgpu_native_location = LibraryLocator.wgpu_native_location)

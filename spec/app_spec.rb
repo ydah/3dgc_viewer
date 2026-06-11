@@ -431,9 +431,10 @@ RSpec.describe ThreeDgcViewer::App do
     output = capture_stdout { described_class.run(%w[--diagnose --json]) }
     data = JSON.parse(output)
 
-    expect(data).to include("version", "ruby", "platform", "wgpu_native", "wgpu_gem", "glfw", "surface_shim", "shader_dir")
+    expect(data).to include("version", "ruby", "platform", "wgpu_native", "wgpu_gem", "glfw", "surface_shim", "windowing", "shader_dir")
     expect(data.fetch("ruby")).to include("engine", "version", "platform")
     expect(data.fetch("wgpu_gem")).to include("version", "requirement", "compatible")
+    expect(data.fetch("windowing")).to include("hint", "display", "wayland_display", "xdg_session_type")
     expect(data.fetch("shader_dir")).to include("path", "exists")
   end
 
