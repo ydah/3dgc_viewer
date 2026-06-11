@@ -22,23 +22,29 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     properties.each { |type, name| header << "property #{type} #{name}\n" }
     header << "end_header\n"
 
-    body = rows.map do |row|
-      properties.each_with_index.map { |(type, _name), index| pack_scalar(type, row[index]) }.join
-    end.join
+    body =
+      if format == "ascii"
+        rows.map { |row| row.join(" ") }.join("\n") + "\n"
+      else
+        big_endian = format == "binary_big_endian"
+        rows.map do |row|
+          properties.each_with_index.map { |(type, _name), index| pack_scalar(type, row[index], big_endian: big_endian) }.join
+        end.join
+      end
 
     (header + body).b
   end
 
-  def pack_scalar(type, value)
+  def pack_scalar(type, value, big_endian: false)
     case type
     when "char", "int8" then [value].pack("c")
     when "uchar", "uint8" then [value].pack("C")
-    when "short", "int16" then [value].pack("s<")
-    when "ushort", "uint16" then [value].pack("S<")
-    when "int", "int32" then [value].pack("l<")
-    when "uint", "uint32" then [value].pack("L<")
-    when "float", "float32" then [value].pack("e")
-    when "double", "float64" then [value].pack("E")
+    when "short", "int16" then [value].pack(big_endian ? "s>" : "s<")
+    when "ushort", "uint16" then [value].pack(big_endian ? "S>" : "S<")
+    when "int", "int32" then [value].pack(big_endian ? "l>" : "l<")
+    when "uint", "uint32" then [value].pack(big_endian ? "L>" : "L<")
+    when "float", "float32" then [value].pack(big_endian ? "g" : "e")
+    when "double", "float64" then [value].pack(big_endian ? "G" : "E")
     else
       raise "unsupported test scalar #{type}"
     end
@@ -122,16 +128,26 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(set.statistics.invalid_count).to eq(1)
   end
 
-  it "rejects ascii PLY" do
-    bytes = "ply\nformat ascii 1.0\nelement vertex 0\nend_header\n"
+  it "parses ASCII PLY" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]
 
-    expect { described_class.parse_bytes(bytes) }.to raise_error(ThreeDgcViewer::PlyError, /ascii/)
+    set = described_class.parse_bytes(build_ply(properties, [row], format: "ascii"))
+
+    expect(set.kind).to eq(:gaussian3d)
+    expect(set.items.first.position).to eq([1.0, 2.0, 3.0])
+    expect(set.items.first.sh[0]).to eq(0.7)
   end
 
-  it "rejects big-endian PLY" do
-    bytes = "ply\nformat binary_big_endian 1.0\nelement vertex 0\nend_header\n"
+  it "parses binary big-endian PLY" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]
 
-    expect { described_class.parse_bytes(bytes) }.to raise_error(ThreeDgcViewer::PlyError, /binary_big_endian/)
+    set = described_class.parse_bytes(build_ply(properties, [row], format: "binary_big_endian"))
+
+    expect(set.kind).to eq(:gaussian3d)
+    expect(set.items.first.position).to eq([1.0, 2.0, 3.0])
+    expect(set.items.first.sh[2]).to be_within(1e-6).of(0.9)
   end
 
   it "detects missing required fields" do

@@ -44,7 +44,7 @@ module ThreeDgcViewer
       "float64" => [:d, 8]
     }.freeze
 
-    Property = Struct.new(:name, :type, :offset, :size, keyword_init: true)
+    Property = Struct.new(:name, :type, :offset, :size, :index, keyword_init: true)
     Header = Struct.new(
       :format, :header_end, :vertex_count, :vertex_stride,
       :properties, :property_map, :comments, :obj_info, keyword_init: true
@@ -153,7 +153,7 @@ module ThreeDgcViewer
         when "property"
           next unless in_vertex
 
-          property = parse_property(tokens, offset)
+          property = parse_property(tokens, offset, properties.length)
           raise PlyError, "duplicate PLY vertex property: #{property.name}" if property_map.key?(property.name)
           raise PlyError, "too many PLY vertex properties" if properties.length >= MAX_VERTEX_PROPERTIES
 
@@ -165,8 +165,6 @@ module ThreeDgcViewer
       end
 
       raise PlyError, "PLY format line is missing" unless format
-      raise PlyError, "PLY format ascii is not supported" if format == :ascii
-      raise PlyError, "PLY format binary_big_endian is not supported" if format == :binary_big_endian
       raise PlyError, "PLY element vertex is missing" unless vertex_count
 
       Header.new(
@@ -205,7 +203,7 @@ module ThreeDgcViewer
       count
     end
 
-    def parse_property(tokens, offset)
+    def parse_property(tokens, offset, index)
       raise PlyError, "property list in vertex is not supported" if tokens[1] == "list"
       raise PlyError, "invalid property line" unless tokens.length >= 3
 
@@ -214,10 +212,12 @@ module ThreeDgcViewer
 
       raise PlyError, "PLY property name is too long" if tokens[2].bytesize > MAX_PROPERTY_NAME_BYTES
 
-      Property.new(name: tokens[2], type: scalar[0], offset: offset, size: scalar[1])
+      Property.new(name: tokens[2], type: scalar[0], offset: offset, size: scalar[1], index: index)
     end
 
     def validate_body_size(header)
+      return if header.format == :ascii
+
       expected_body_size = header.vertex_count * header.vertex_stride
       expected_total_size = header.header_end + expected_body_size
       return unless @io.respond_to?(:size)
@@ -369,17 +369,35 @@ module ThreeDgcViewer
       property = header.property_map[name]
       return default unless property
 
+      if header.format == :ascii
+        return unpack_ascii_scalar(row[property.index], property.type, name, vertex_index).to_f
+      end
+
       chunk = row.byteslice(property.offset, property.size)
       raise PlyError, "PLY body is too short at vertex #{vertex_index}" unless chunk&.bytesize == property.size
 
-      unpack_scalar(chunk, property.type).to_f
+      unpack_scalar(chunk, property.type, header.format).to_f
     end
 
     def read_row(header, index)
+      return read_ascii_row(header, index) if header.format == :ascii
+
       row = @io.read(header.vertex_stride)
       return row if row&.bytesize == header.vertex_stride
 
       raise PlyError, "PLY body is too short at vertex #{index}"
+    end
+
+    def read_ascii_row(header, index)
+      line = @io.gets
+      raise PlyError, "PLY body is too short at vertex #{index}" unless line
+
+      values = line.strip.split(/\s+/)
+      if values.length < header.properties.length
+        raise PlyError, "PLY ASCII row has too few values at vertex #{index}"
+      end
+
+      values
     end
 
     def gaussian_finite?(*groups)
@@ -398,16 +416,32 @@ module ThreeDgcViewer
       )
     end
 
-    def unpack_scalar(chunk, type)
+    def unpack_ascii_scalar(token, type, property_name, vertex_index)
+      value =
+        case type
+        when :c, :C, :s, :S, :l, :L
+          Integer(token, exception: false)
+        when :f, :d
+          Float(token, exception: false)
+        else
+          raise PlyError, "unsupported scalar reader: #{type.inspect}"
+        end
+      return value if value
+
+      raise PlyError, "invalid ASCII PLY value for #{property_name} at vertex #{vertex_index}: #{token.inspect}"
+    end
+
+    def unpack_scalar(chunk, type, format)
+      big_endian = format == :binary_big_endian
       case type
       when :c then chunk.unpack1("c")
       when :C then chunk.unpack1("C")
-      when :s then chunk.unpack1("s<")
-      when :S then chunk.unpack1("S<")
-      when :l then chunk.unpack1("l<")
-      when :L then chunk.unpack1("L<")
-      when :f then chunk.unpack1("e")
-      when :d then chunk.unpack1("E")
+      when :s then chunk.unpack1(big_endian ? "s>" : "s<")
+      when :S then chunk.unpack1(big_endian ? "S>" : "S<")
+      when :l then chunk.unpack1(big_endian ? "l>" : "l<")
+      when :L then chunk.unpack1(big_endian ? "L>" : "L<")
+      when :f then chunk.unpack1(big_endian ? "g" : "e")
+      when :d then chunk.unpack1(big_endian ? "G" : "E")
       else
         raise PlyError, "unsupported scalar reader: #{type.inspect}"
       end
