@@ -539,9 +539,12 @@ module ThreeDgcViewer
       0
     rescue Error => e
       log_exception(e)
-      exit_code_for(e)
+      exit_code = exit_code_for(e)
+      print_json_error(e, exit_code)
+      exit_code
     rescue StandardError => e
       log_exception(e)
+      print_json_error(e, EXIT_RUNTIME_ERROR)
       EXIT_RUNTIME_ERROR
     end
 
@@ -651,6 +654,16 @@ module ThreeDgcViewer
     def puts_json(value)
       puts JSON.generate(value)
       0
+    end
+
+    def print_json_error(error, exit_code)
+      return unless @options.json
+
+      puts JSON.generate(
+        error: error.class.name.split("::").last,
+        message: error.message,
+        exit_code: exit_code
+      )
     end
 
     def scene_info_hash(gaussian_set, stats)

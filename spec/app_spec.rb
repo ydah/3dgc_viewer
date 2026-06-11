@@ -280,6 +280,23 @@ RSpec.describe ThreeDgcViewer::App do
     expect(described_class.run(%w[--validate-ply])).to eq(3)
   end
 
+  it "prints runtime errors as JSON when machine-readable output is requested" do
+    result = nil
+    output = nil
+
+    capture_stderr do
+      output = capture_stdout { result = described_class.run(%w[--validate-ply --json]) }
+    end
+
+    data = JSON.parse(output)
+    expect(result).to eq(3)
+    expect(data).to include(
+      "error" => "PlyError",
+      "message" => "--validate-ply requires --file",
+      "exit_code" => 3
+    )
+  end
+
   it "prints validate-only results as JSON" do
     file = build_ply_file
 
