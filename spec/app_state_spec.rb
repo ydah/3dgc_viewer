@@ -241,6 +241,14 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(stats[:checksum]).to be_a(Integer)
   end
 
+  it "rejects truncated render texture readbacks" do
+    state = described_class.new(FakeWindow.new(1280, 720), render_width: 2, render_height: 1)
+    state.define_singleton_method(:render_texture_rgba_bytes) { "\0\0\0\0".b }
+
+    expect { state.render_texture_statistics }
+      .to raise_error(ThreeDgcViewer::WgpuError, /readback size/)
+  end
+
   it "updates the window title after loading a file" do
     file = build_ply_file(".notply")
     window = FakeWindow.new(1280, 720)

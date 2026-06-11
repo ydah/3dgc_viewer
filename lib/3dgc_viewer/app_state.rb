@@ -226,13 +226,14 @@ module ThreeDgcViewer
     end
 
     def render_texture_rgb_nonzero?
-      render_texture_rgba_bytes.bytes.each_slice(4).any? do |red, green, blue, _alpha|
+      bytes = checked_render_texture_rgba_bytes
+      bytes.bytes.each_slice(4).any? do |red, green, blue, _alpha|
         red.to_i.positive? || green.to_i.positive? || blue.to_i.positive?
       end
     end
 
     def render_texture_statistics
-      bytes = render_texture_rgba_bytes
+      bytes = checked_render_texture_rgba_bytes
       stats = {
         width: @render_width,
         height: @render_height,
@@ -254,6 +255,14 @@ module ThreeDgcViewer
         stats[:luminance_histogram][bucket] += 1
       end
       stats
+    end
+
+    def checked_render_texture_rgba_bytes
+      bytes = render_texture_rgba_bytes
+      expected_size = @render_width * @render_height * 4
+      return bytes if bytes.bytesize == expected_size
+
+      raise WgpuError, "render texture readback size must be #{expected_size} bytes, got #{bytes.bytesize}"
     end
 
     def render_texture_rgba_bytes
