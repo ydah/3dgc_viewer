@@ -83,6 +83,25 @@ module ThreeDgcViewer
       @scene_dirty = true if @camera_controller.handle_key(key, pressed)
     end
 
+    def handle_mouse_button(button, action, x, y)
+      pressed = action == Window::GLFW::GLFW_PRESS
+      if pressed
+        mode = pointer_mode_for(button)
+        @scene_dirty = true if mode && @camera_controller.begin_pointer(mode, x, y)
+        return
+      end
+
+      @scene_dirty = true if action == Window::GLFW::GLFW_RELEASE && @camera_controller.end_pointer
+    end
+
+    def handle_cursor(x, y)
+      @scene_dirty = true if @camera_controller.move_pointer(@camera, x, y) == :active
+    end
+
+    def handle_scroll(_x_offset, y_offset)
+      @scene_dirty = true if @camera_controller.scroll(@camera, y_offset) == :active
+    end
+
     def handle_drop(path, max_pairs: nil)
       unless File.extname(path).downcase == ".ply"
         @logger.warn("ignored non-PLY file: #{path}")
@@ -226,6 +245,15 @@ module ThreeDgcViewer
         render_height: @render_height,
         max_pairs: max_pairs
       )
+    end
+
+    def pointer_mode_for(button)
+      case button
+      when Window::GLFW::MOUSE_BUTTON_LEFT
+        CameraController::POINTER_ORBIT
+      when Window::GLFW::MOUSE_BUTTON_RIGHT, Window::GLFW::MOUSE_BUTTON_MIDDLE
+        CameraController::POINTER_PAN
+      end
     end
 
     def handle_shortcut(key)

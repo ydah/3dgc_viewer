@@ -48,12 +48,20 @@ module ThreeDgcViewer
   class CameraController
     attr_reader :radius
 
+    POINTER_ORBIT = :orbit
+    POINTER_PAN = :pan
+
     def initialize(speed: 1.0)
       @rotate_speed = speed * 0.25
+      @pointer_rotate_speed = speed * 0.005
+      @pointer_pan_speed = speed * 0.001
+      @scroll_zoom_speed = speed * 0.12
       @base_zoom_speed = speed
       @zoom_speed = speed
       @radius = 1.0
       @scene_radius = 1.0
+      @pointer_mode = nil
+      @last_pointer = nil
       @keys = {
         yaw_left: false,
         yaw_right: false,
@@ -82,6 +90,49 @@ module ThreeDgcViewer
       changed = @keys[action] != pressed
       @keys[action] = pressed
       changed
+    end
+
+    def begin_pointer(mode, x, y)
+      return false unless [POINTER_ORBIT, POINTER_PAN].include?(mode)
+
+      @pointer_mode = mode
+      @last_pointer = [x.to_f, y.to_f]
+      true
+    end
+
+    def end_pointer
+      return false unless @pointer_mode
+
+      @pointer_mode = nil
+      @last_pointer = nil
+      true
+    end
+
+    def move_pointer(camera, x, y)
+      return :idle unless @pointer_mode && @last_pointer
+
+      current = [x.to_f, y.to_f]
+      dx = current[0] - @last_pointer[0]
+      dy = current[1] - @last_pointer[1]
+      @last_pointer = current
+      return :idle if dx.zero? && dy.zero?
+
+      @pointer_mode == POINTER_ORBIT ? orbit(camera, dx, dy) : pan(camera, dx, dy)
+      sync_from_camera(camera)
+      :active
+    end
+
+    def scroll(camera, y_offset)
+      return :idle if y_offset.to_f.zero?
+
+      offset = Math3D::Vec3.sub(camera.eye, camera.target)
+      current_radius = Math3D::Vec3.length(offset)
+      return :idle if current_radius < Math3D::EPSILON
+
+      factor = Math.exp(-y_offset.to_f * @scroll_zoom_speed)
+      @radius = [current_radius * factor, 0.01].max
+      camera.eye = Math3D::Vec3.add(camera.target, Math3D::Vec3.mul_scalar(Math3D::Vec3.normalize(offset), @radius))
+      :active
     end
 
     def update_camera(camera, dt_sec)
@@ -129,6 +180,47 @@ module ThreeDgcViewer
     end
 
     private
+
+    def orbit(camera, dx, dy)
+      offset = Math3D::Vec3.sub(camera.eye, camera.target)
+      up = Math3D::Vec3.normalize(camera.up)
+      yaw = -dx * @pointer_rotate_speed
+      pitch = -dy * @pointer_rotate_speed
+
+      if yaw != 0.0
+        q = Math3D::Quat.from_axis_angle([0.0, 1.0, 0.0], yaw)
+        offset = Math3D::Quat.rotate_vec3(q, offset)
+        up = Math3D::Quat.rotate_vec3(q, up)
+      end
+
+      right = camera_right(offset, up)
+      if pitch != 0.0
+        q = Math3D::Quat.from_axis_angle(right, pitch)
+        offset = Math3D::Quat.rotate_vec3(q, offset)
+        up = Math3D::Quat.rotate_vec3(q, up)
+      end
+
+      camera.eye = Math3D::Vec3.add(camera.target, offset)
+      camera.up = Math3D::Vec3.normalize(up)
+    end
+
+    def pan(camera, dx, dy)
+      offset = Math3D::Vec3.sub(camera.eye, camera.target)
+      up = Math3D::Vec3.normalize(camera.up)
+      right = camera_right(offset, up)
+      scale = [Math3D::Vec3.length(offset), @scene_radius, 0.01].max * @pointer_pan_speed
+      delta = Math3D::Vec3.add(
+        Math3D::Vec3.mul_scalar(right, -dx * scale),
+        Math3D::Vec3.mul_scalar(up, dy * scale)
+      )
+
+      camera.eye = Math3D::Vec3.add(camera.eye, delta)
+      camera.target = Math3D::Vec3.add(camera.target, delta)
+    end
+
+    def camera_right(offset, up)
+      Math3D::Vec3.normalize(Math3D::Vec3.cross(up, Math3D::Vec3.normalize(offset)))
+    end
 
     def axis_value(negative_key, positive_key)
       (@keys[negative_key] ? -1.0 : 0.0) + (@keys[positive_key] ? 1.0 : 0.0)

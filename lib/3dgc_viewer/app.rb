@@ -240,9 +240,16 @@ module ThreeDgcViewer
     end
 
     def install_state_callbacks(window, state)
+      cursor = [0.0, 0.0]
       window.on_key { |key, action| state.handle_key(key, action) }
       window.on_drop { |paths| state.handle_drop(paths.first) if paths.first }
       window.on_resize { |width, height| state.resize(width, height) }
+      window.on_cursor do |x, y|
+        cursor = [x, y]
+        state.handle_cursor(x, y)
+      end
+      window.on_mouse_button { |button, action, _mods| state.handle_mouse_button(button, action, cursor[0], cursor[1]) }
+      window.on_scroll { |x_offset, y_offset| state.handle_scroll(x_offset, y_offset) }
     end
 
     def render_smoke_frame(window, state)

@@ -78,6 +78,26 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(state.show_axis).to eq(false)
   end
 
+  it "handles mouse orbit pan and scroll events" do
+    state = described_class.new(FakeWindow.new(1280, 720))
+    initial_eye = state.camera.eye
+    initial_target = state.camera.target
+
+    state.handle_mouse_button(ThreeDgcViewer::Window::GLFW::MOUSE_BUTTON_LEFT, ThreeDgcViewer::Window::GLFW::GLFW_PRESS, 10.0, 10.0)
+    state.handle_cursor(40.0, 20.0)
+    state.handle_mouse_button(ThreeDgcViewer::Window::GLFW::MOUSE_BUTTON_LEFT, ThreeDgcViewer::Window::GLFW::GLFW_RELEASE, 40.0, 20.0)
+    expect(state.camera.eye).not_to eq(initial_eye)
+
+    state.handle_mouse_button(ThreeDgcViewer::Window::GLFW::MOUSE_BUTTON_RIGHT, ThreeDgcViewer::Window::GLFW::GLFW_PRESS, 20.0, 20.0)
+    state.handle_cursor(25.0, 50.0)
+    state.handle_mouse_button(ThreeDgcViewer::Window::GLFW::MOUSE_BUTTON_RIGHT, ThreeDgcViewer::Window::GLFW::GLFW_RELEASE, 25.0, 50.0)
+    expect(state.camera.target).not_to eq(initial_target)
+
+    eye_after_pan = state.camera.eye
+    state.handle_scroll(0.0, 1.0)
+    expect(state.camera.eye).not_to eq(eye_after_pan)
+  end
+
   it "updates the window title after loading a file" do
     file = build_ply_file
     window = FakeWindow.new(1280, 720)

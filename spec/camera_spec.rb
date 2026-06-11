@@ -35,4 +35,40 @@ RSpec.describe ThreeDgcViewer::CameraController do
 
     expect(controller.radius).to be < initial_radius
   end
+
+  it "orbits the camera from pointer drag" do
+    camera = ThreeDgcViewer::Camera.default(width: 1280, height: 720)
+    controller = described_class.new
+    initial_eye = camera.eye
+
+    controller.begin_pointer(described_class::POINTER_ORBIT, 100.0, 100.0)
+    result = controller.move_pointer(camera, 140.0, 120.0)
+
+    expect(result).to eq(:active)
+    expect(camera.eye).not_to eq(initial_eye)
+  end
+
+  it "pans the camera target from pointer drag" do
+    camera = ThreeDgcViewer::Camera.default(width: 1280, height: 720)
+    controller = described_class.new
+    initial_target = camera.target
+
+    controller.begin_pointer(described_class::POINTER_PAN, 100.0, 100.0)
+    result = controller.move_pointer(camera, 120.0, 150.0)
+
+    expect(result).to eq(:active)
+    expect(camera.target).not_to eq(initial_target)
+  end
+
+  it "zooms from scroll offsets" do
+    camera = ThreeDgcViewer::Camera.default(width: 1280, height: 720)
+    controller = described_class.new
+    controller.sync_from_camera(camera)
+    initial_radius = controller.radius
+
+    expect(controller.scroll(camera, 1.0)).to eq(:active)
+
+    controller.sync_from_camera(camera)
+    expect(controller.radius).to be < initial_radius
+  end
 end
