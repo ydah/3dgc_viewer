@@ -33,6 +33,11 @@ RSpec.describe ThreeDgcViewer::AppState do
     Logger.new(StringIO.new)
   end
 
+  def string_logger
+    output = StringIO.new
+    [Logger.new(output), output]
+  end
+
   it "fits the camera when replacing gaussians with scene bounds" do
     state = described_class.new(FakeWindow.new(1280, 720))
     bounds = ThreeDgcViewer::Gaussian::Bounds.new(
@@ -133,6 +138,16 @@ RSpec.describe ThreeDgcViewer::AppState do
 
     expect { state.send(:request_device!) }
       .to raise_error(ThreeDgcViewer::WgpuError, /failed to request GPU device.*Test Adapter/)
+  end
+
+  it "warns when the requested present mode is unavailable" do
+    logger, output = string_logger
+    state = described_class.new(FakeWindow.new(1280, 720), logger: logger, present_mode: :mailbox)
+
+    mode = state.send(:choose_present_mode, [:fifo])
+
+    expect(mode).to eq(:fifo)
+    expect(output.string).to include("requested present mode :mailbox is unavailable")
   end
 
   it "handles fit reset and axis toggle shortcuts" do

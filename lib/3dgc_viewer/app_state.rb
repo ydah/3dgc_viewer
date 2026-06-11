@@ -623,7 +623,17 @@ module ThreeDgcViewer
     end
 
     def choose_present_mode(modes)
+      modes = Array(modes)
       return @requested_present_mode if @requested_present_mode && modes.include?(@requested_present_mode)
+
+      if @requested_present_mode
+        fallback = modes.first || :fifo
+        @logger.warn(
+          "requested present mode #{@requested_present_mode.inspect} is unavailable; " \
+          "using #{fallback.inspect}"
+        )
+        return fallback
+      end
 
       modes.first || :fifo
     end
