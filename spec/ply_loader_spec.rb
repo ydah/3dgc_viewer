@@ -139,6 +139,38 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(set.items.first.sh[0]).to eq(0.7)
   end
 
+  it "parses common property aliases and RGB color fallback" do
+    properties = [
+      ["float", "position_x"],
+      ["float", "position_y"],
+      ["float", "position_z"],
+      ["float", "alpha"],
+      ["float", "scale_x"],
+      ["float", "scale_y"],
+      ["float", "scale_z"],
+      ["float", "qw"],
+      ["float", "qx"],
+      ["float", "qy"],
+      ["float", "qz"],
+      ["uchar", "red"],
+      ["uchar", "green"],
+      ["uchar", "blue"]
+    ]
+    row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 255, 128, 0]
+
+    item = described_class.parse_bytes(build_ply(properties, [row])).items.first
+
+    expect(item.position).to eq([1.0, 2.0, 3.0])
+    expect(item.opacity).to be_within(1e-6).of(0.4)
+    expect(item.scale[0]).to be_within(1e-6).of(0.1)
+    expect(item.scale[1]).to be_within(1e-6).of(0.2)
+    expect(item.scale[2]).to be_within(1e-6).of(0.3)
+    expect(item.rotation).to eq([1.0, 0.0, 0.0, 0.0])
+    expect(item.sh[0]).to eq(1.0)
+    expect(item.sh[1]).to be_within(1e-6).of(128.0 / 255.0)
+    expect(item.sh[2]).to eq(0.0)
+  end
+
   it "parses binary big-endian PLY" do
     properties = REQUIRED_3D.map { |name| ["float", name] }
     row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]

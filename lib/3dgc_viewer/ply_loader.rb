@@ -25,6 +25,23 @@ module ThreeDgcViewer
       omega_0 omega_1 omega_2 omega_3
     ].freeze
 
+    PROPERTY_ALIASES = {
+      "x" => %w[position_x pos_x],
+      "y" => %w[position_y pos_y],
+      "z" => %w[position_z pos_z],
+      "opacity" => %w[alpha],
+      "scale_0" => %w[scale_x sx],
+      "scale_1" => %w[scale_y sy],
+      "scale_2" => %w[scale_z sz],
+      "rot_0" => %w[rotation_0 qw],
+      "rot_1" => %w[rotation_1 qx],
+      "rot_2" => %w[rotation_2 qy],
+      "rot_3" => %w[rotation_3 qz],
+      "f_dc_0" => %w[red r color_0 diffuse_red],
+      "f_dc_1" => %w[green g color_1 diffuse_green],
+      "f_dc_2" => %w[blue b color_2 diffuse_blue]
+    }.freeze
+
     SCALAR_TYPES = {
       "char" => [:c, 1],
       "int8" => [:c, 1],
@@ -226,12 +243,11 @@ module ThreeDgcViewer
     end
 
     def classify(header)
-      property_names = header.properties.map(&:name)
-      has_3dgs_core = REQUIRED_3DGS_FIELDS.all? { |name| property_names.include?(name) }
+      has_3dgs_core = REQUIRED_3DGS_FIELDS.all? { |name| property_for(header, name) }
       return :unknown unless has_3dgs_core
 
-      has_any_stg = REQUIRED_STG_LITE_FIELDS.any? { |name| property_names.include?(name) }
-      has_all_stg = REQUIRED_STG_LITE_FIELDS.all? { |name| property_names.include?(name) }
+      has_any_stg = REQUIRED_STG_LITE_FIELDS.any? { |name| property_for(header, name) }
+      has_all_stg = REQUIRED_STG_LITE_FIELDS.all? { |name| property_for(header, name) }
 
       if has_all_stg
         :gaussian4d
@@ -359,24 +375,36 @@ module ThreeDgcViewer
     end
 
     def require_properties(header, names)
-      missing = names.reject { |name| header.property_map.key?(name) }
+      missing = names.reject { |name| property_for(header, name) }
       return if missing.empty?
 
       raise PlyError, "missing required PLY vertex properties: #{missing.join(", ")}"
     end
 
     def read(header, row, name, default: nil, vertex_index: nil)
-      property = header.property_map[name]
+      property = property_for(header, name)
       return default unless property
 
       if header.format == :ascii
-        return unpack_ascii_scalar(row[property.index], property.type, name, vertex_index).to_f
+        return normalize_alias_value(name, property, unpack_ascii_scalar(row[property.index], property.type, name, vertex_index).to_f)
       end
 
       chunk = row.byteslice(property.offset, property.size)
       raise PlyError, "PLY body is too short at vertex #{vertex_index}" unless chunk&.bytesize == property.size
 
-      unpack_scalar(chunk, property.type, header.format).to_f
+      normalize_alias_value(name, property, unpack_scalar(chunk, property.type, header.format).to_f)
+    end
+
+    def property_for(header, name)
+      header.property_map[name] || PROPERTY_ALIASES.fetch(name, []).lazy.map { |alias_name| header.property_map[alias_name] }.find { |property| property }
+    end
+
+    def normalize_alias_value(requested_name, property, value)
+      return value unless requested_name.start_with?("f_dc_")
+      return value if property.name == requested_name
+      return value unless value > 1.0
+
+      value / 255.0
     end
 
     def read_row(header, index)
