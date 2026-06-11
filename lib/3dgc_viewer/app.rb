@@ -53,6 +53,7 @@ module ThreeDgcViewer
       :file, :width, :height, :log_level, :wgpu_native, :glfw, :show_axis,
       :render_width, :render_height, :render_scale, :render_size_window,
       :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info, :print_controls,
+      :diagnose,
       :print_recent_files, :clear_recent_files, :recent_files, :recent_files_path,
       :camera_preset, :save_camera_preset, :camera_bookmarks, :camera_bookmark,
       :save_camera_bookmark, :print_camera_bookmarks,
@@ -90,6 +91,7 @@ module ThreeDgcViewer
         validate_ply: false,
         print_scene_info: false,
         print_gpu_info: false,
+        diagnose: false,
         print_controls: false,
         print_recent_files: false,
         clear_recent_files: false,
@@ -219,6 +221,7 @@ module ThreeDgcViewer
         opts.on("--validate-ply", "Parse --file and exit") { options.validate_ply = true }
         opts.on("--print-scene-info", "Print parsed scene statistics and exit") { options.print_scene_info = true }
         opts.on("--print-gpu-info", "Print GPU/native library locator information and exit") { options.print_gpu_info = true }
+        opts.on("--diagnose", "Print startup environment diagnostics and exit") { options.diagnose = true }
         opts.on("--print-controls", "Print keyboard and mouse controls and exit") { options.print_controls = true }
         opts.on("--print-recent-files", "Print recent file history and exit") { options.print_recent_files = true }
         opts.on("--clear-recent-files", "Clear recent file history and exit") { options.clear_recent_files = true }
@@ -255,6 +258,8 @@ module ThreeDgcViewer
       validate_max_file_bytes_option(options)
       validate_log_level(options.log_level)
       validate_file(options.file, option_name: "--file") if options.file
+      validate_file(options.wgpu_native, option_name: "--wgpu-native") if options.wgpu_native
+      validate_file(options.glfw, option_name: "--glfw") if options.glfw
       validate_output_file("--save-camera-preset", options.save_camera_preset) if options.save_camera_preset
       validate_camera_bookmark_options(options)
       validate_positive_int("--max-pairs", options.max_pairs) if options.max_pairs
@@ -540,6 +545,7 @@ module ThreeDgcViewer
       log_startup
       return validate_ply if @options.validate_ply
       return print_scene_info if @options.print_scene_info
+      return diagnose if @options.diagnose
       return print_gpu_info if @options.print_gpu_info
       return print_controls if @options.print_controls
       return clear_recent_files if @options.clear_recent_files
@@ -617,6 +623,21 @@ module ThreeDgcViewer
       print_location("glfw", LibraryLocator.glfw_location)
       print_location("surface_shim", LibraryLocator.surface_shim_location)
       puts "shader_dir: #{LibraryLocator.shader_dir}"
+      0
+    end
+
+    def diagnose
+      diagnostics = diagnostics_hash
+      return puts_json(diagnostics) if @options.json
+
+      puts "version: #{diagnostics[:version]}"
+      puts "ruby: #{diagnostics[:ruby][:engine]} #{diagnostics[:ruby][:version]} (#{diagnostics[:ruby][:platform]})"
+      puts "platform: #{diagnostics[:platform]}"
+      print_location("wgpu_native", LibraryLocator.wgpu_native_location)
+      print_location("glfw", LibraryLocator.glfw_location)
+      print_location("surface_shim", LibraryLocator.surface_shim_location)
+      puts "shader_dir: #{diagnostics[:shader_dir][:path]}"
+      puts "shader_dir_exists: #{diagnostics[:shader_dir][:exists]}"
       0
     end
 
@@ -726,6 +747,25 @@ module ThreeDgcViewer
         glfw: location_hash(LibraryLocator.glfw_location),
         surface_shim: location_hash(LibraryLocator.surface_shim_location),
         shader_dir: LibraryLocator.shader_dir
+      }
+    end
+
+    def diagnostics_hash
+      {
+        version: VERSION,
+        ruby: {
+          engine: RUBY_ENGINE,
+          version: RUBY_VERSION,
+          platform: RUBY_PLATFORM
+        },
+        platform: LibraryLocator.platform,
+        wgpu_native: location_hash(LibraryLocator.wgpu_native_location),
+        glfw: location_hash(LibraryLocator.glfw_location),
+        surface_shim: location_hash(LibraryLocator.surface_shim_location),
+        shader_dir: {
+          path: LibraryLocator.shader_dir,
+          exists: Dir.exist?(LibraryLocator.shader_dir)
+        }
       }
     end
 

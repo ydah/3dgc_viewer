@@ -338,6 +338,13 @@ RSpec.describe ThreeDgcViewer::App do
       .to raise_error(OptionParser::InvalidArgument, /does not exist/)
   end
 
+  it "checks explicit native library paths during option parsing" do
+    expect { described_class.parse_options(%w[--wgpu-native /missing/libwgpu_native.dylib]) }
+      .to raise_error(OptionParser::InvalidArgument, /wgpu-native.*does not exist/)
+    expect { described_class.parse_options(%w[--glfw /missing/libglfw.dylib]) }
+      .to raise_error(OptionParser::InvalidArgument, /glfw.*does not exist/)
+  end
+
   it "returns a distinct exit code for PLY runtime errors" do
     expect(described_class.run(%w[--validate-ply])).to eq(3)
   end
@@ -417,6 +424,15 @@ RSpec.describe ThreeDgcViewer::App do
     data = JSON.parse(output)
 
     expect(data).to include("platform", "wgpu_native", "glfw", "surface_shim")
+  end
+
+  it "prints startup diagnostics as JSON without initializing the window" do
+    output = capture_stdout { described_class.run(%w[--diagnose --json]) }
+    data = JSON.parse(output)
+
+    expect(data).to include("version", "ruby", "platform", "wgpu_native", "glfw", "surface_shim", "shader_dir")
+    expect(data.fetch("ruby")).to include("engine", "version", "platform")
+    expect(data.fetch("shader_dir")).to include("path", "exists")
   end
 
   it "prints controls without initializing the window" do
