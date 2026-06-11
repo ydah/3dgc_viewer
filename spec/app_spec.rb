@@ -61,6 +61,7 @@ RSpec.describe ThreeDgcViewer::App do
       --background-color #336699cc
       --exposure 1.5
       --gamma 2.2
+      --watch
     ])
 
     expect(options.eye).to eq([1.0, 2.0, 3.0])
@@ -77,6 +78,7 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.background_color).to eq([0x33 / 255.0, 0x66 / 255.0, 0x99 / 255.0, 0xcc / 255.0])
     expect(options.exposure).to eq(1.5)
     expect(options.gamma).to eq(2.2)
+    expect(options.watch).to eq(true)
   end
 
   it "rejects invalid log level" do

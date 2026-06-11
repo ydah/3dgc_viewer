@@ -40,6 +40,7 @@ module ThreeDgcViewer
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :pause, :power_preference, :present_mode,
       :background_color, :exposure, :gamma,
+      :watch,
       keyword_init: true
     )
 
@@ -82,7 +83,8 @@ module ThreeDgcViewer
         present_mode: nil,
         background_color: [0.0, 0.0, 0.0, 1.0],
         exposure: 1.0,
-        gamma: 1.0
+        gamma: 1.0,
+        watch: false
       )
       explicit_render_size = false
 
@@ -117,6 +119,7 @@ module ThreeDgcViewer
         opts.on("--background-color COLOR", "#rrggbb, #rrggbbaa, or r,g,b[,a]") { |value| options.background_color = parse_color(value) }
         opts.on("--exposure N", Float, "Render exposure multiplier") { |value| options.exposure = value }
         opts.on("--gamma N", Float, "Output gamma") { |value| options.gamma = value }
+        opts.on("--watch", "Reload the loaded file when it changes") { options.watch = true }
         opts.on("--log-level LEVEL", "debug/info/warn/error") { |value| options.log_level = value }
         opts.on("--wgpu-native PATH", "Path to libwgpu_native") { |value| options.wgpu_native = value }
         opts.on("--glfw PATH", "Path to libglfw") { |value| options.glfw = value }
@@ -358,7 +361,8 @@ module ThreeDgcViewer
         present_mode: @options.present_mode,
         background_color: @options.background_color,
         exposure: @options.exposure,
-        gamma: @options.gamma
+        gamma: @options.gamma,
+        watch_files: @options.watch
       )
       install_state_callbacks(window, state)
       state.initialize_gpu
@@ -399,7 +403,7 @@ module ThreeDgcViewer
     def install_state_callbacks(window, state)
       cursor = [0.0, 0.0]
       window.on_key { |key, action| state.handle_key(key, action) }
-      window.on_drop { |paths| state.handle_drop(paths.first) if paths.first }
+      window.on_drop { |paths| state.handle_drops(paths, max_pairs: @options.max_pairs) }
       window.on_resize { |width, height| state.resize(width, height) }
       window.on_cursor do |x, y|
         cursor = [x, y]

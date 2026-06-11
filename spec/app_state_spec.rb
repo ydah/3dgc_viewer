@@ -137,4 +137,31 @@ RSpec.describe ThreeDgcViewer::AppState do
   ensure
     file&.unlink
   end
+
+  it "tracks recent files and handles multiple drops explicitly" do
+    first = build_ply_file(".ply")
+    second = build_ply_file(".ply")
+    window = FakeWindow.new(1280, 720)
+    state = described_class.new(window, logger: quiet_logger)
+
+    state.handle_drops([first.path, second.path])
+
+    expect(state.recent_files.first).to eq(File.expand_path(first.path))
+    expect(window.title).to include(File.basename(first.path))
+  ensure
+    first&.unlink
+    second&.unlink
+  end
+
+  it "reloads the current scene from the keyboard shortcut" do
+    file = build_ply_file(".ply")
+    state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger)
+    state.handle_drop(file.path)
+
+    expect do
+      state.handle_key(ThreeDgcViewer::Window::Keymap::KEY_L, ThreeDgcViewer::Window::GLFW::GLFW_PRESS)
+    end.not_to change { state.resources.gaussian_count }
+  ensure
+    file&.unlink
+  end
 end

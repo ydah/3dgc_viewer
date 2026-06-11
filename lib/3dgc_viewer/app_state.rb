@@ -17,7 +17,7 @@ module ThreeDgcViewer
   class AppState
     GPU_MEMORY_WARNING_BYTES = 4 * 1024 * 1024 * 1024
 
-    attr_reader :window, :scene_type, :resources, :camera, :scene_uniform, :show_axis,
+    attr_reader :window, :scene_type, :resources, :camera, :scene_uniform, :show_axis, :recent_files,
                 :render_width, :render_height, :time_speed, :time_paused
 
     def initialize(window, logger: Logger.new($stderr), show_axis: true,
@@ -25,7 +25,8 @@ module ThreeDgcViewer
                    follow_window_render_size: false, initial_camera: nil,
                    initial_time: 0.0, time_speed: Scene::TIME_SPEED, time_paused: false,
                    power_preference: :high_performance, present_mode: nil,
-                   background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0)
+                   background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0,
+                   watch_files: false)
       @window = window
       @logger = logger
       @show_axis = show_axis
@@ -34,6 +35,7 @@ module ThreeDgcViewer
       @time_paused = time_paused
       @power_preference = power_preference
       @requested_present_mode = present_mode
+      @watch_files = watch_files
       @render_width = positive_int(render_width)
       @render_height = positive_int(render_height)
       sync_render_size_to_window if @follow_window_render_size
@@ -42,6 +44,9 @@ module ThreeDgcViewer
       @scene_type = :gaussian3d
       @scene_bounds = Gaussian::Bounds.empty
       @scene_label = nil
+      @scene_path = nil
+      @scene_mtime = nil
+      @recent_files = []
       @last_fps = nil
       @resource_generation = 0
       @pair_overflow_readback = nil
@@ -118,10 +123,21 @@ module ThreeDgcViewer
       @scene_dirty = true if @camera_controller.scroll(@camera, y_offset) == :active
     end
 
+    def handle_drops(paths, max_pairs: nil)
+      paths = Array(paths).compact
+      return @logger.warn("drop ignored: no files") if paths.empty?
+
+      @logger.warn("multiple files dropped; loading first and ignoring #{paths.length - 1}") if paths.length > 1
+      handle_drop(paths.first, max_pairs: max_pairs)
+    end
+
     def handle_drop(path, max_pairs: nil)
       gaussian_set = PlyLoader.parse_file(path, retain_items: false)
       replace_gaussians(gaussian_set, max_pairs: max_pairs)
+      @scene_path = path
+      @scene_mtime = safe_mtime(path)
       @scene_label = File.basename(path)
+      add_recent_file(path)
       @logger.info("loaded #{gaussian_set.kind} with #{gaussian_set.count} gaussians")
       log_resource_estimate
       update_window_title
@@ -147,6 +163,7 @@ module ThreeDgcViewer
       dt = now - @last_update_time
       @last_update_time = now
 
+      reload_changed_scene if @watch_files
       @scene_dirty = true if @camera_controller.update_camera(@camera, dt) == :active
       @scene_uniform.update_camera(@camera)
       @scene_uniform.update_gaussian_count(@resources.gaussian_count)
@@ -271,6 +288,8 @@ module ThreeDgcViewer
       case key
       when Window::Keymap::KEY_F
         fit_camera_to_scene(@scene_bounds)
+      when Window::Keymap::KEY_L
+        return reload_scene
       when Window::Keymap::KEY_R
         reset_camera
       when Window::Keymap::KEY_X
@@ -280,6 +299,13 @@ module ThreeDgcViewer
       end
 
       @scene_dirty = true
+      true
+    end
+
+    def reload_scene
+      return false unless @scene_path
+
+      handle_drop(@scene_path, max_pairs: @resources.max_pairs)
       true
     end
 
@@ -356,6 +382,29 @@ module ThreeDgcViewer
       parts << "#{@resources.gaussian_count} gaussians" if @resources
       parts << "#{@last_fps} FPS" if @last_fps
       @window.title = parts.join(" - ")
+    end
+
+    def reload_changed_scene
+      return unless @scene_path
+
+      mtime = safe_mtime(@scene_path)
+      return unless mtime && @scene_mtime && mtime > @scene_mtime
+
+      @logger.info("detected file change; reloading #{@scene_path}")
+      reload_scene
+    end
+
+    def safe_mtime(path)
+      File.mtime(path)
+    rescue SystemCallError
+      nil
+    end
+
+    def add_recent_file(path)
+      expanded = File.expand_path(path)
+      @recent_files.delete(expanded)
+      @recent_files.unshift(expanded)
+      @recent_files = @recent_files.first(10)
     end
 
     def sync_render_size_to_window
