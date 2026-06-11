@@ -8,6 +8,7 @@ require_relative "app_state"
 require_relative "camera_preset"
 require_relative "controls_help"
 require_relative "ply_loader"
+require_relative "recent_files"
 require_relative "version"
 require_relative "window/glfw"
 
@@ -50,6 +51,7 @@ module ThreeDgcViewer
       :file, :width, :height, :log_level, :wgpu_native, :glfw, :show_axis,
       :render_width, :render_height, :render_scale, :render_size_window,
       :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info, :print_controls,
+      :print_recent_files, :recent_files, :recent_files_path,
       :camera_preset, :save_camera_preset,
       :log_json, :debug_errors,
       :hidden, :smoke_frame, :smoke_resize,
@@ -85,6 +87,9 @@ module ThreeDgcViewer
         print_scene_info: false,
         print_gpu_info: false,
         print_controls: false,
+        print_recent_files: false,
+        recent_files: true,
+        recent_files_path: nil,
         camera_preset: nil,
         save_camera_preset: nil,
         log_json: false,
@@ -187,6 +192,12 @@ module ThreeDgcViewer
         opts.on("--print-scene-info", "Print parsed scene statistics and exit") { options.print_scene_info = true }
         opts.on("--print-gpu-info", "Print GPU/native library locator information and exit") { options.print_gpu_info = true }
         opts.on("--print-controls", "Print keyboard and mouse controls and exit") { options.print_controls = true }
+        opts.on("--print-recent-files", "Print recent file history and exit") { options.print_recent_files = true }
+        opts.on("--recent-files PATH", "Read/write recent file history at PATH") do |value|
+          options.recent_files = true
+          options.recent_files_path = value
+        end
+        opts.on("--no-recent-files", "Disable persistent recent file history") { options.recent_files = false }
         opts.on("--version", "Print version") do
           puts VERSION
           exit 0
@@ -216,6 +227,7 @@ module ThreeDgcViewer
       validate_positive_int("--benchmark", options.benchmark) if options.benchmark
       validate_screenshot_path(options.screenshot) if options.screenshot
       validate_frame_sequence_options(options)
+      validate_recent_files_options(options)
       validate_batch_options(options)
       apply_render_scale(options, explicit_render_size: explicit_render_size) if options.render_scale
     end
@@ -395,6 +407,13 @@ module ThreeDgcViewer
       raise OptionParser::InvalidArgument, "--window-only cannot be combined with render batch options"
     end
 
+    def self.validate_recent_files_options(options)
+      return if options.recent_files_path.nil? || !options.recent_files
+      return unless options.recent_files_path.to_s.empty?
+
+      raise OptionParser::InvalidArgument, "--recent-files must not be empty"
+    end
+
     def self.format_frame_sequence_path(pattern, index)
       format(pattern, index)
     end
@@ -427,6 +446,7 @@ module ThreeDgcViewer
       return print_scene_info if @options.print_scene_info
       return print_gpu_info if @options.print_gpu_info
       return print_controls if @options.print_controls
+      return print_recent_files if @options.print_recent_files
       return save_camera_preset if @options.save_camera_preset
 
       @options.window_only ? run_window_only : run_native
@@ -487,6 +507,14 @@ module ThreeDgcViewer
       return puts_json(ControlsHelp.entries) if @options.json
 
       puts ControlsHelp.text
+      0
+    end
+
+    def print_recent_files
+      files = build_recent_files_store&.load || []
+      return puts_json(files) if @options.json
+
+      puts files
       0
     end
 
@@ -570,7 +598,8 @@ module ThreeDgcViewer
         opacity_threshold: @options.opacity_threshold,
         scale_multiplier: @options.scale_multiplier,
         watch_files: @options.watch,
-        pair_capacity_factor: pair_capacity_factor
+        pair_capacity_factor: pair_capacity_factor,
+        recent_files_store: build_recent_files_store
       )
       install_state_callbacks(window, state)
       state.initialize_gpu
@@ -608,6 +637,12 @@ module ThreeDgcViewer
       return 8 if @options.low_vram
 
       QUALITY_PAIR_FACTORS.fetch(@options.quality)
+    end
+
+    def build_recent_files_store
+      return nil unless @options.recent_files
+
+      RecentFiles.new(path: @options.recent_files_path)
     end
 
     def install_window_only_callbacks(window)

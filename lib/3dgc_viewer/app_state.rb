@@ -9,6 +9,7 @@ require_relative "gaussian_resources"
 require_relative "library_locator"
 require_relative "passes"
 require_relative "ply_loader"
+require_relative "recent_files"
 require_relative "scene_uniform"
 require_relative "shader_loader"
 require_relative "screenshot_writer"
@@ -29,7 +30,7 @@ module ThreeDgcViewer
                    power_preference: :high_performance, present_mode: nil,
                    background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0,
                    brightness: 0.0, contrast: 1.0, opacity_threshold: 0.0, scale_multiplier: 1.0,
-                   watch_files: false, pair_capacity_factor: 32)
+                   watch_files: false, pair_capacity_factor: 32, recent_files_store: nil)
       @window = window
       @logger = logger
       @show_axis = show_axis
@@ -40,6 +41,7 @@ module ThreeDgcViewer
       @requested_present_mode = present_mode
       @watch_files = watch_files
       @pair_capacity_factor = pair_capacity_factor
+      @recent_files_store = recent_files_store
       @render_width = positive_int(render_width)
       @render_height = positive_int(render_height)
       sync_render_size_to_window if @follow_window_render_size
@@ -50,7 +52,7 @@ module ThreeDgcViewer
       @scene_label = nil
       @scene_path = nil
       @scene_mtime = nil
-      @recent_files = []
+      @recent_files = @recent_files_store&.load || []
       @last_fps = nil
       @resource_generation = 0
       @released = false
@@ -445,6 +447,9 @@ module ThreeDgcViewer
       @recent_files.delete(expanded)
       @recent_files.unshift(expanded)
       @recent_files = @recent_files.first(10)
+      @recent_files_store&.save(@recent_files)
+    rescue SystemCallError => e
+      @logger.warn("recent file history update failed: #{e.message}")
     end
 
     def sync_render_size_to_window

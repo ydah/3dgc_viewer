@@ -269,6 +269,20 @@ RSpec.describe ThreeDgcViewer::App do
     expect(data).to include(include("keys" => "F", "action" => "Fit view to scene"))
   end
 
+  it "prints recent files from the configured history store" do
+    history = Tempfile.new(["recent", ".json"])
+    history.write(JSON.generate([File.expand_path("scene.ply")]))
+    history.close
+
+    output = capture_stdout do
+      described_class.run(["--print-recent-files", "--recent-files", history.path, "--json"])
+    end
+
+    expect(JSON.parse(output)).to eq([File.expand_path("scene.ply")])
+  ensure
+    history&.unlink
+  end
+
   it "can write logs as JSON lines" do
     stderr = nil
     capture_stdout do

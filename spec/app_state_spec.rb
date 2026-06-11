@@ -169,6 +169,23 @@ RSpec.describe ThreeDgcViewer::AppState do
     second&.unlink
   end
 
+  it "persists recent files after a successful load" do
+    file = build_ply_file(".ply")
+    history = Tempfile.new(["recent", ".json"])
+    history_path = history.path
+    history.close
+    history.unlink
+    store = ThreeDgcViewer::RecentFiles.new(path: history_path)
+    state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger, recent_files_store: store)
+
+    state.handle_drop(file.path)
+
+    expect(store.load.first).to eq(File.expand_path(file.path))
+  ensure
+    file&.unlink
+    File.delete(history_path) if history_path && File.exist?(history_path)
+  end
+
   it "reloads the current scene from the keyboard shortcut" do
     file = build_ply_file(".ply")
     state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger)
