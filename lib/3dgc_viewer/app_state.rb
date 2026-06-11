@@ -26,7 +26,7 @@ module ThreeDgcViewer
                    initial_time: 0.0, time_speed: Scene::TIME_SPEED, time_paused: false,
                    power_preference: :high_performance, present_mode: nil,
                    background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0,
-                   watch_files: false)
+                   watch_files: false, pair_capacity_factor: 32)
       @window = window
       @logger = logger
       @show_axis = show_axis
@@ -36,6 +36,7 @@ module ThreeDgcViewer
       @power_preference = power_preference
       @requested_present_mode = present_mode
       @watch_files = watch_files
+      @pair_capacity_factor = pair_capacity_factor
       @render_width = positive_int(render_width)
       @render_height = positive_int(render_height)
       sync_render_size_to_window if @follow_window_render_size
@@ -271,7 +272,8 @@ module ThreeDgcViewer
         gaussian_set: gaussian_set,
         render_width: @render_width,
         render_height: @render_height,
-        max_pairs: max_pairs
+        max_pairs: max_pairs,
+        pair_capacity_factor: @pair_capacity_factor
       )
     end
 

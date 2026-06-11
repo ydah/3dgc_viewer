@@ -61,6 +61,8 @@ RSpec.describe ThreeDgcViewer::App do
       --background-color #336699cc
       --exposure 1.5
       --gamma 2.2
+      --quality fast
+      --low-vram
       --watch
     ])
 
@@ -78,6 +80,8 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.background_color).to eq([0x33 / 255.0, 0x66 / 255.0, 0x99 / 255.0, 0xcc / 255.0])
     expect(options.exposure).to eq(1.5)
     expect(options.gamma).to eq(2.2)
+    expect(options.quality).to eq(:fast)
+    expect(options.low_vram).to eq(true)
     expect(options.watch).to eq(true)
   end
 
@@ -105,6 +109,11 @@ RSpec.describe ThreeDgcViewer::App do
       .to raise_error(OptionParser::InvalidArgument, /exposure/)
     expect { described_class.parse_options(%w[--gamma 0]) }
       .to raise_error(OptionParser::InvalidArgument, /gamma/)
+  end
+
+  it "rejects invalid quality presets" do
+    expect { described_class.parse_options(%w[--quality ultra]) }
+      .to raise_error(OptionParser::InvalidArgument, /quality/)
   end
 
   it "checks startup file paths during option parsing" do

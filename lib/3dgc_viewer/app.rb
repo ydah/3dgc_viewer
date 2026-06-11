@@ -30,6 +30,11 @@ module ThreeDgcViewer
       "mailbox" => :mailbox,
       "immediate" => :immediate
     }.freeze
+    QUALITY_PAIR_FACTORS = {
+      fast: 16,
+      balanced: 32,
+      quality: 64
+    }.freeze
 
     Options = Struct.new(
       :file, :width, :height, :log_level, :wgpu_native, :glfw, :show_axis,
@@ -40,7 +45,7 @@ module ThreeDgcViewer
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :pause, :power_preference, :present_mode,
       :background_color, :exposure, :gamma,
-      :watch,
+      :watch, :quality, :low_vram,
       keyword_init: true
     )
 
@@ -84,7 +89,9 @@ module ThreeDgcViewer
         background_color: [0.0, 0.0, 0.0, 1.0],
         exposure: 1.0,
         gamma: 1.0,
-        watch: false
+        watch: false,
+        quality: :balanced,
+        low_vram: false
       )
       explicit_render_size = false
 
@@ -119,6 +126,8 @@ module ThreeDgcViewer
         opts.on("--background-color COLOR", "#rrggbb, #rrggbbaa, or r,g,b[,a]") { |value| options.background_color = parse_color(value) }
         opts.on("--exposure N", Float, "Render exposure multiplier") { |value| options.exposure = value }
         opts.on("--gamma N", Float, "Output gamma") { |value| options.gamma = value }
+        opts.on("--quality PRESET", "fast/balanced/quality") { |value| options.quality = parse_quality(value) }
+        opts.on("--low-vram", "Use smaller default GPU pair buffers") { options.low_vram = true }
         opts.on("--watch", "Reload the loaded file when it changes") { options.watch = true }
         opts.on("--log-level LEVEL", "debug/info/warn/error") { |value| options.log_level = value }
         opts.on("--wgpu-native PATH", "Path to libwgpu_native") { |value| options.wgpu_native = value }
@@ -190,6 +199,13 @@ module ThreeDgcViewer
       PRESENT_MODES.fetch(value.to_s.downcase) do
         raise OptionParser::InvalidArgument, "--present-mode must be fifo, mailbox, or immediate"
       end
+    end
+
+    def self.parse_quality(value)
+      key = value.to_s.downcase.to_sym
+      return key if QUALITY_PAIR_FACTORS.key?(key)
+
+      raise OptionParser::InvalidArgument, "--quality must be fast, balanced, or quality"
     end
 
     def self.parse_color(value)
@@ -362,7 +378,8 @@ module ThreeDgcViewer
         background_color: @options.background_color,
         exposure: @options.exposure,
         gamma: @options.gamma,
-        watch_files: @options.watch
+        watch_files: @options.watch,
+        pair_capacity_factor: pair_capacity_factor
       )
       install_state_callbacks(window, state)
       state.initialize_gpu
@@ -390,6 +407,12 @@ module ThreeDgcViewer
       camera.znear = @options.znear
       camera.zfar = @options.zfar
       camera
+    end
+
+    def pair_capacity_factor
+      return 8 if @options.low_vram
+
+      QUALITY_PAIR_FACTORS.fetch(@options.quality)
     end
 
     def install_window_only_callbacks(window)

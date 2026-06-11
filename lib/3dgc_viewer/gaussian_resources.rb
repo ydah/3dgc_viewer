@@ -46,13 +46,14 @@ module ThreeDgcViewer
       capacity
     end
 
-    def initialize(device: nil, queue: nil, gaussian_set:, render_width: Scene::SCREEN_WIDTH, render_height: Scene::SCREEN_HEIGHT, max_pairs: nil)
+    def initialize(device: nil, queue: nil, gaussian_set:, render_width: Scene::SCREEN_WIDTH, render_height: Scene::SCREEN_HEIGHT,
+                   max_pairs: nil, pair_capacity_factor: 32)
       @device = device
       @queue = queue
       @gaussian_set = gaussian_set
       @gaussian_count = gaussian_set.count
       @count1 = [@gaussian_count, 1].max
-      @max_pairs = [max_pairs || (@count1 * 32), 1].max
+      @max_pairs = [max_pairs || (@count1 * positive_int(pair_capacity_factor)), 1].max
       @max_blocks0 = ceil_div(@count1, 256)
       @max_blocks1 = ceil_div(@max_blocks0, 256)
       @max_blocks2 = ceil_div(@max_blocks1, 256)

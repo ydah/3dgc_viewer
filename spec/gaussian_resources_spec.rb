@@ -61,6 +61,21 @@ RSpec.describe ThreeDgcViewer::GaussianResources do
     expect(described_class.next_pair_capacity(4097, 4096)).to eq(8192)
   end
 
+  it "uses configurable default pair capacity factors" do
+    item = ThreeDgcViewer::Gaussian::Gaussian3d.new(
+      position: [0.0, 0.0, 0.0],
+      opacity: 0.0,
+      scale: [0.0, 0.0, 0.0],
+      rotation: [1.0, 0.0, 0.0, 0.0],
+      sh: []
+    )
+    set = ThreeDgcViewer::Gaussian::GaussianSet.new(kind: :gaussian3d, items: [item, item])
+
+    resources = described_class.new(gaussian_set: set, pair_capacity_factor: 8)
+
+    expect(resources.max_pairs).to eq(16)
+  end
+
   it "exposes buffer accessors explicitly" do
     set = ThreeDgcViewer::Gaussian::GaussianSet.new(kind: :gaussian3d, items: [])
     resources = described_class.new(gaussian_set: set)
