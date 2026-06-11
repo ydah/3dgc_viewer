@@ -191,6 +191,19 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(set.items.first.position).to eq([1.0, 2.0, 3.0])
   end
 
+  it "rejects excessive non-vertex list counts before allocating skip buffers" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    header = +"ply\nformat binary_little_endian 1.0\n"
+    header << "element face 1\nproperty list uint int vertex_indices\n"
+    header << "element vertex 1\n"
+    properties.each { |type, name| header << "property #{type} #{name}\n" }
+    header << "end_header\n"
+    bytes = header.b + [described_class::MAX_LIST_VALUES + 1].pack("L<")
+
+    expect { described_class.parse_bytes(bytes) }
+      .to raise_error(ThreeDgcViewer::PlyError, /list count.*exceeds/)
+  end
+
   it "parses common property aliases and RGB color fallback" do
     properties = [
       ["float", "position_x"],

@@ -12,6 +12,7 @@ module ThreeDgcViewer
     MAX_VERTEX_STRIDE = 64 * 1024
     MAX_VERTEX_PROPERTIES = 512
     MAX_PROPERTY_NAME_BYTES = 256
+    MAX_LIST_VALUES = 1_000_000
     MAX_SH_DEGREE = 3
     SH_REST_COEFFICIENTS_PER_CHANNEL = 15
 
@@ -566,6 +567,9 @@ module ThreeDgcViewer
       count_chunk = read_exact(property.count_size, "while reading #{element_name}.#{property.name} list count at row #{row_index}")
       count = unpack_scalar(count_chunk, property.count_type, format).to_i
       raise PlyError, "negative PLY list count for #{element_name}.#{property.name} at row #{row_index}" if count.negative?
+      if count > MAX_LIST_VALUES
+        raise PlyError, "PLY list count for #{element_name}.#{property.name} at row #{row_index} exceeds #{MAX_LIST_VALUES}"
+      end
 
       skip_bytes(count * property.value_size, "while skipping #{element_name}.#{property.name} list values at row #{row_index}")
     end
