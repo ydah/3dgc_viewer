@@ -643,6 +643,9 @@ module ThreeDgcViewer
       if diagnostics[:wgpu_gem][:native_library]
         puts "wgpu_gem_native: #{diagnostics[:wgpu_gem][:native_library]}"
       end
+      if diagnostics[:wgpu_gem].key?(:native_library_matches_locator)
+        puts "wgpu_gem_native_matches_locator: #{diagnostics[:wgpu_gem][:native_library_matches_locator]}"
+      end
       if diagnostics[:wgpu_gem][:load_error]
         puts "wgpu_gem_load_error: #{diagnostics[:wgpu_gem][:load_error]}"
       end
@@ -761,6 +764,7 @@ module ThreeDgcViewer
     end
 
     def diagnostics_hash
+      wgpu_native_location = LibraryLocator.wgpu_native_location
       {
         version: VERSION,
         ruby: {
@@ -769,8 +773,8 @@ module ThreeDgcViewer
           platform: RUBY_PLATFORM
         },
         platform: LibraryLocator.platform,
-        wgpu_native: location_hash(LibraryLocator.wgpu_native_location),
-        wgpu_gem: wgpu_gem_hash,
+        wgpu_native: location_hash(wgpu_native_location),
+        wgpu_gem: wgpu_gem_hash(wgpu_native_location),
         glfw: location_hash(LibraryLocator.glfw_location),
         surface_shim: location_hash(LibraryLocator.surface_shim_location),
         shader_dir: {
@@ -784,7 +788,7 @@ module ThreeDgcViewer
       {path: location.path, source: location.source, exists: location.exists}
     end
 
-    def wgpu_gem_hash
+    def wgpu_gem_hash(wgpu_native_location = LibraryLocator.wgpu_native_location)
       spec = Gem.loaded_specs["wgpu"] || Gem::Specification.find_all_by_name("wgpu").max_by(&:version)
       version = spec&.version&.to_s
       compatible = version ? WGPU_GEM_REQUIREMENT.satisfied_by?(Gem::Version.new(version)) : false
@@ -794,7 +798,7 @@ module ThreeDgcViewer
         compatible: compatible
       }
 
-      add_wgpu_native_probe(info)
+      add_wgpu_native_probe(info, wgpu_native_location)
       info
     rescue StandardError => e
       {
@@ -805,7 +809,7 @@ module ThreeDgcViewer
       }
     end
 
-    def add_wgpu_native_probe(info)
+    def add_wgpu_native_probe(info, wgpu_native_location)
       require "wgpu"
 
       native = ::WGPU.const_defined?(:Native) ? ::WGPU::Native : nil
@@ -814,8 +818,28 @@ module ThreeDgcViewer
       path = native.library_path
       info[:native_library] = path
       info[:native_library_exists] = path ? File.file?(path) : false
+      annotate_wgpu_locator_match(info, wgpu_native_location)
     rescue LoadError, StandardError => e
       info[:load_error] = e.message
+    end
+
+    def annotate_wgpu_locator_match(info, wgpu_native_location)
+      path = info[:native_library]
+      return unless path && wgpu_native_location
+
+      info[:native_library_matches_locator] = same_native_path?(path, wgpu_native_location.path)
+    end
+
+    def same_native_path?(left, right)
+      return false if left.to_s.empty? || right.to_s.empty?
+
+      canonical_path(left) == canonical_path(right)
+    end
+
+    def canonical_path(path)
+      File.realpath(path)
+    rescue SystemCallError
+      File.expand_path(path)
     end
 
     def range_or_nil(min, max)

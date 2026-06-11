@@ -4,6 +4,7 @@ require "spec_helper"
 require "json"
 require "stringio"
 require "tempfile"
+require "tmpdir"
 
 RSpec.describe ThreeDgcViewer::App do
   def required_3d
@@ -434,6 +435,27 @@ RSpec.describe ThreeDgcViewer::App do
     expect(data.fetch("ruby")).to include("engine", "version", "platform")
     expect(data.fetch("wgpu_gem")).to include("version", "requirement", "compatible")
     expect(data.fetch("shader_dir")).to include("path", "exists")
+  end
+
+  it "can flag whether the wgpu gem native library matches the locator" do
+    Dir.mktmpdir do |dir|
+      native_path = File.join(dir, "libwgpu_native.dylib")
+      other_path = File.join(dir, "other_libwgpu_native.dylib")
+      File.binwrite(native_path, "")
+      File.binwrite(other_path, "")
+      app = described_class.new(described_class.parse_options([]))
+      location = ThreeDgcViewer::LibraryLocator::Location.new(path: File.join(dir, ".", "libwgpu_native.dylib"), source: :env, exists: true)
+      info = {native_library: native_path}
+
+      app.send(:annotate_wgpu_locator_match, info, location)
+
+      expect(info[:native_library_matches_locator]).to eq(true)
+
+      info = {native_library: other_path}
+      app.send(:annotate_wgpu_locator_match, info, location)
+
+      expect(info[:native_library_matches_locator]).to eq(false)
+    end
   end
 
   it "prints controls without initializing the window" do
