@@ -342,7 +342,11 @@ module ThreeDgcViewer
       expected_total_size = header.header_end + expected_body_size
       return unless @io.respond_to?(:size)
 
-      raise PlyError, "PLY body is too short" if @io.size < expected_total_size
+      return unless @io.size < expected_total_size
+
+      raise PlyError,
+        "PLY body is too short: expected at least #{expected_body_size} body bytes " \
+        "(#{expected_total_size} total), got #{@io.size - header.header_end} body bytes (#{@io.size} total)"
     end
 
     def fixed_binary_body_size(header)

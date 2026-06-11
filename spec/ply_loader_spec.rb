@@ -323,6 +323,6 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     bytes = build_ply(properties, [Array.new(properties.length, 0.0)])
 
     expect { described_class.parse_bytes(bytes.byteslice(0, bytes.bytesize - 1)) }
-      .to raise_error(ThreeDgcViewer::PlyError, /too short/)
+      .to raise_error(ThreeDgcViewer::PlyError, /expected at least .* body bytes/)
   end
 end
