@@ -372,7 +372,18 @@ module ThreeDgcViewer
       "surface shim returned null surface " \
         "(platform=#{LibraryLocator.platform}, window_ptr=#{window_ptr}, " \
         "surface_shim=#{surface_shim.path} source=#{surface_shim.source} exists=#{surface_shim.exists}, " \
-        "wgpu_native=#{wgpu_native.path} source=#{wgpu_native.source} exists=#{wgpu_native.exists})"
+        "wgpu_native=#{wgpu_native.path} source=#{wgpu_native.source} exists=#{wgpu_native.exists}" \
+        "#{linux_surface_environment})"
+    end
+
+    def linux_surface_environment
+      return "" unless LibraryLocator.platform.start_with?("linux-")
+
+      values = %w[DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE].map do |key|
+        value = ENV[key]
+        "#{key}=#{value && !value.empty? ? value : "<unset>"}"
+      end
+      ", #{values.join(", ")}"
     end
 
     def pointer_mode_for(button)

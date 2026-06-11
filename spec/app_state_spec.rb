@@ -398,6 +398,34 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect { state.handle_drop(path) }.not_to raise_error
   end
 
+  it "includes Linux display environment in null surface errors" do
+    previous_display = ENV["DISPLAY"]
+    previous_wayland = ENV["WAYLAND_DISPLAY"]
+    previous_session = ENV["XDG_SESSION_TYPE"]
+    ENV["DISPLAY"] = ":99"
+    ENV.delete("WAYLAND_DISPLAY")
+    ENV["XDG_SESSION_TYPE"] = "x11"
+    ptr = Struct.new(:address).new(0x1234)
+    window = Struct.new(:width, :height, :ptr) do
+      def framebuffer_size
+        [width, height]
+      end
+    end.new(1280, 720, ptr)
+    allow(ThreeDgcViewer::LibraryLocator).to receive(:platform).and_return("linux-x64")
+    state = described_class.new(window, logger: quiet_logger)
+
+    message = state.send(:null_surface_message)
+
+    expect(message).to include("window_ptr=0x1234")
+    expect(message).to include("DISPLAY=:99")
+    expect(message).to include("WAYLAND_DISPLAY=<unset>")
+    expect(message).to include("XDG_SESSION_TYPE=x11")
+  ensure
+    ENV["DISPLAY"] = previous_display
+    ENV["WAYLAND_DISPLAY"] = previous_wayland
+    ENV["XDG_SESSION_TYPE"] = previous_session
+  end
+
   it "releases owned GPU objects at most once" do
     releasable_class = Class.new do
       attr_reader :release_count
