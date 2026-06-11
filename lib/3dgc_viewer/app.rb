@@ -140,6 +140,7 @@ module ThreeDgcViewer
         opts.on("--power-preference VALUE", "high-performance/low-power") { |value| options.power_preference = parse_power_preference(value) }
         opts.on("--present-mode MODE", "fifo/mailbox/immediate") { |value| options.present_mode = parse_present_mode(value) }
         opts.on("--background-color COLOR", "#rrggbb, #rrggbbaa, or r,g,b[,a]") { |value| options.background_color = parse_color(value) }
+        opts.on("--transparent-background", "Set background alpha to 0 for RGBA screenshots") { options.background_color[3] = 0.0 }
         opts.on("--exposure N", Float, "Render exposure multiplier") { |value| options.exposure = value }
         opts.on("--gamma N", Float, "Output gamma") { |value| options.gamma = value }
         opts.on("--brightness N", Float, "Output brightness offset") { |value| options.brightness = value }
@@ -160,7 +161,7 @@ module ThreeDgcViewer
         opts.on("--smoke-resize", "During --smoke-frame, resize once and render again") { options.smoke_resize = true }
         opts.on("--smoke-camera", "During --smoke-frame, simulate camera keys and render again") { options.smoke_camera = true }
         opts.on("--assert-render-nonzero", "Fail if the internal render texture has no non-black RGB pixels") { options.assert_render_nonzero = true }
-        opts.on("--screenshot PATH", "Save one rendered frame as PPM and exit") { |value| options.screenshot = value }
+        opts.on("--screenshot PATH", "Save one rendered frame as .ppm RGB or .pam RGBA and exit") { |value| options.screenshot = value }
         opts.on("--benchmark N", Integer, "Render N frames and print timing, then exit") { |value| options.benchmark = value }
         opts.on("--validate-ply", "Parse --file and exit") { options.validate_ply = true }
         opts.on("--print-scene-info", "Print parsed scene statistics and exit") { options.print_scene_info = true }
@@ -310,7 +311,10 @@ module ThreeDgcViewer
 
     def self.validate_screenshot_path(path)
       raise OptionParser::InvalidArgument, "--screenshot must not be empty" if path.to_s.empty?
-      raise OptionParser::InvalidArgument, "--screenshot path must end with .ppm" unless File.extname(path).casecmp?(".ppm")
+      extensions = %w[.ppm .pam]
+      unless extensions.any? { |extension| File.extname(path).casecmp?(extension) }
+        raise OptionParser::InvalidArgument, "--screenshot path must end with .ppm or .pam"
+      end
 
       directory = File.dirname(path)
       raise OptionParser::InvalidArgument, "--screenshot directory does not exist: #{directory}" unless Dir.exist?(directory)

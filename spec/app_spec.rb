@@ -63,6 +63,7 @@ RSpec.describe ThreeDgcViewer::App do
       --power-preference low-power
       --present-mode mailbox
       --background-color #336699cc
+      --transparent-background
       --exposure 1.5
       --gamma 2.2
       --brightness 0.1
@@ -86,7 +87,7 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.pause).to eq(true)
     expect(options.power_preference).to eq(:low_power)
     expect(options.present_mode).to eq(:mailbox)
-    expect(options.background_color).to eq([0x33 / 255.0, 0x66 / 255.0, 0x99 / 255.0, 0xcc / 255.0])
+    expect(options.background_color).to eq([0x33 / 255.0, 0x66 / 255.0, 0x99 / 255.0, 0.0])
     expect(options.exposure).to eq(1.5)
     expect(options.gamma).to eq(2.2)
     expect(options.brightness).to eq(0.1)
@@ -148,6 +149,17 @@ RSpec.describe ThreeDgcViewer::App do
       .to raise_error(OptionParser::InvalidArgument, /screenshot/)
     expect { described_class.parse_options(%w[--window-only --benchmark 1]) }
       .to raise_error(OptionParser::InvalidArgument, /window-only/)
+  end
+
+  it "accepts PAM screenshots for RGBA output" do
+    screenshot = Tempfile.new(["frame", ".pam"])
+    screenshot.close
+
+    options = described_class.parse_options(["--screenshot", screenshot.path])
+
+    expect(options.screenshot).to eq(screenshot.path)
+  ensure
+    screenshot&.unlink
   end
 
   it "checks startup file paths during option parsing" do

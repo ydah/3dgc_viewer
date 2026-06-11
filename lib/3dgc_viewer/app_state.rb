@@ -217,7 +217,7 @@ module ThreeDgcViewer
     end
 
     def save_screenshot(path)
-      ScreenshotWriter.write_ppm(
+      ScreenshotWriter.write(
         path: path,
         width: @render_width,
         height: @render_height,

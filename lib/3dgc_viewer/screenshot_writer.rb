@@ -4,11 +4,38 @@ module ThreeDgcViewer
   module ScreenshotWriter
     module_function
 
+    def write(path:, width:, height:, rgba_bytes:)
+      case File.extname(path).downcase
+      when ".ppm"
+        write_ppm(path: path, width: width, height: height, rgba_bytes: rgba_bytes)
+      when ".pam"
+        write_pam(path: path, width: width, height: height, rgba_bytes: rgba_bytes)
+      else
+        raise ArgumentError, "unsupported screenshot format: #{File.extname(path)}"
+      end
+    end
+
     def write_ppm(path:, width:, height:, rgba_bytes:)
       File.binwrite(path, ppm_bytes(width: width, height: height, rgba_bytes: rgba_bytes))
     end
 
+    def write_pam(path:, width:, height:, rgba_bytes:)
+      File.binwrite(path, pam_bytes(width: width, height: height, rgba_bytes: rgba_bytes))
+    end
+
     def ppm_bytes(width:, height:, rgba_bytes:)
+      width, height, rgba_bytes = validate_rgba(width: width, height: height, rgba_bytes: rgba_bytes)
+      header = "P6\n#{width} #{height}\n255\n".b
+      header + rgb_bytes(rgba_bytes)
+    end
+
+    def pam_bytes(width:, height:, rgba_bytes:)
+      width, height, rgba_bytes = validate_rgba(width: width, height: height, rgba_bytes: rgba_bytes)
+      header = "P7\nWIDTH #{width}\nHEIGHT #{height}\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n".b
+      header + rgba_bytes
+    end
+
+    def validate_rgba(width:, height:, rgba_bytes:)
       width = positive_int(width, "width")
       height = positive_int(height, "height")
       rgba_bytes = rgba_bytes.to_s.b
@@ -17,9 +44,9 @@ module ThreeDgcViewer
         raise ArgumentError, "rgba bytes size must be #{expected_size}, got #{rgba_bytes.bytesize}"
       end
 
-      header = "P6\n#{width} #{height}\n255\n".b
-      header + rgb_bytes(rgba_bytes)
+      [width, height, rgba_bytes]
     end
+    private_class_method :validate_rgba
 
     def rgb_bytes(rgba_bytes)
       rgb = String.new(capacity: (rgba_bytes.bytesize / 4) * 3, encoding: Encoding::BINARY)
