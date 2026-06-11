@@ -225,6 +225,12 @@ module ThreeDgcViewer
       )
     end
 
+    def set_time(value)
+      @scene_uniform.set_time(value)
+      @queue&.write_buffer(@scene_uniform_buffer, 0, @scene_uniform.pack) if @scene_uniform_buffer
+      @scene_dirty = true
+    end
+
     def should_request_redraw?
       @scene_dirty || Scene.dynamic?(@scene_type)
     end

@@ -74,7 +74,9 @@ RSpec.describe ThreeDgcViewer::App do
       --low-vram
       --watch
       --benchmark 3
-    ] + ["--screenshot", screenshot.path])
+      --frame-sequence-count 4
+      --frame-sequence-step 0.25
+    ] + ["--screenshot", screenshot.path, "--frame-sequence", File.join(File.dirname(screenshot.path), "frame_%04d.pam")])
 
     expect(options.eye).to eq([1.0, 2.0, 3.0])
     expect(options.target).to eq([4.0, 5.0, 6.0])
@@ -99,6 +101,9 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.watch).to eq(true)
     expect(options.benchmark).to eq(3)
     expect(options.screenshot).to eq(screenshot.path)
+    expect(options.frame_sequence).to end_with("frame_%04d.pam")
+    expect(options.frame_sequence_count).to eq(4)
+    expect(options.frame_sequence_step).to eq(0.25)
   ensure
     screenshot&.unlink
   end
@@ -149,6 +154,13 @@ RSpec.describe ThreeDgcViewer::App do
       .to raise_error(OptionParser::InvalidArgument, /screenshot/)
     expect { described_class.parse_options(%w[--window-only --benchmark 1]) }
       .to raise_error(OptionParser::InvalidArgument, /window-only/)
+  end
+
+  it "rejects invalid frame sequence options" do
+    expect { described_class.parse_options(%w[--frame-sequence frame.pam]) }
+      .to raise_error(OptionParser::InvalidArgument, /frame-sequence/)
+    expect { described_class.parse_options(%w[--frame-sequence-count 2]) }
+      .to raise_error(OptionParser::InvalidArgument, /frame-sequence-count/)
   end
 
   it "accepts PAM screenshots for RGBA output" do

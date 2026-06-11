@@ -90,6 +90,14 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(state.scene_uniform.scale_multiplier).to eq(0.75)
   end
 
+  it "can set sequence capture time directly" do
+    state = described_class.new(FakeWindow.new(1280, 720), initial_time: 0.25)
+
+    state.set_time(1.25)
+
+    expect(state.scene_uniform.time).to eq(0.25)
+  end
+
   it "handles fit reset and axis toggle shortcuts" do
     state = described_class.new(FakeWindow.new(1280, 720))
     bounds = ThreeDgcViewer::Gaussian::Bounds.new(

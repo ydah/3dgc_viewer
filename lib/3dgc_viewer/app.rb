@@ -49,7 +49,7 @@ module ThreeDgcViewer
       :max_pairs, :window_only, :validate_ply, :print_scene_info, :print_gpu_info,
       :hidden, :smoke_frame, :smoke_resize,
       :smoke_camera, :assert_render_nonzero,
-      :screenshot, :benchmark,
+      :screenshot, :benchmark, :frame_sequence, :frame_sequence_count, :frame_sequence_step,
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :pause, :power_preference, :present_mode,
       :background_color, :exposure, :gamma, :brightness, :contrast,
@@ -86,6 +86,9 @@ module ThreeDgcViewer
         assert_render_nonzero: false,
         screenshot: nil,
         benchmark: nil,
+        frame_sequence: nil,
+        frame_sequence_count: 1,
+        frame_sequence_step: nil,
         eye: nil,
         target: nil,
         up: nil,
@@ -163,6 +166,9 @@ module ThreeDgcViewer
         opts.on("--assert-render-nonzero", "Fail if the internal render texture has no non-black RGB pixels") { options.assert_render_nonzero = true }
         opts.on("--screenshot PATH", "Save one rendered frame as .ppm RGB or .pam RGBA and exit") { |value| options.screenshot = value }
         opts.on("--benchmark N", Integer, "Render N frames and print timing, then exit") { |value| options.benchmark = value }
+        opts.on("--frame-sequence PATTERN", "Save frame sequence using printf pattern, e.g. frame_%04d.pam") { |value| options.frame_sequence = value }
+        opts.on("--frame-sequence-count N", Integer, "Number of frames for --frame-sequence") { |value| options.frame_sequence_count = value }
+        opts.on("--frame-sequence-step T", Float, "4D time step per sequence frame") { |value| options.frame_sequence_step = value }
         opts.on("--validate-ply", "Parse --file and exit") { options.validate_ply = true }
         opts.on("--print-scene-info", "Print parsed scene statistics and exit") { options.print_scene_info = true }
         opts.on("--print-gpu-info", "Print GPU/native library locator information and exit") { options.print_gpu_info = true }
@@ -193,6 +199,7 @@ module ThreeDgcViewer
       validate_positive_int("--max-pairs", options.max_pairs) if options.max_pairs
       validate_positive_int("--benchmark", options.benchmark) if options.benchmark
       validate_screenshot_path(options.screenshot) if options.screenshot
+      validate_frame_sequence_options(options)
       validate_batch_options(options)
       apply_render_scale(options, explicit_render_size: explicit_render_size) if options.render_scale
     end
@@ -311,22 +318,52 @@ module ThreeDgcViewer
 
     def self.validate_screenshot_path(path)
       raise OptionParser::InvalidArgument, "--screenshot must not be empty" if path.to_s.empty?
+      validate_image_output_path("--screenshot", path)
+    end
+
+    def self.validate_image_output_path(option_name, path)
       extensions = %w[.ppm .pam]
       unless extensions.any? { |extension| File.extname(path).casecmp?(extension) }
-        raise OptionParser::InvalidArgument, "--screenshot path must end with .ppm or .pam"
+        raise OptionParser::InvalidArgument, "#{option_name} path must end with .ppm or .pam"
       end
 
       directory = File.dirname(path)
-      raise OptionParser::InvalidArgument, "--screenshot directory does not exist: #{directory}" unless Dir.exist?(directory)
-      raise OptionParser::InvalidArgument, "--screenshot directory is not writable: #{directory}" unless File.writable?(directory)
-      raise OptionParser::InvalidArgument, "--screenshot file is not writable: #{path}" if File.exist?(path) && !File.writable?(path)
+      raise OptionParser::InvalidArgument, "#{option_name} directory does not exist: #{directory}" unless Dir.exist?(directory)
+      raise OptionParser::InvalidArgument, "#{option_name} directory is not writable: #{directory}" unless File.writable?(directory)
+      raise OptionParser::InvalidArgument, "#{option_name} file is not writable: #{path}" if File.exist?(path) && !File.writable?(path)
+    end
+
+    def self.validate_frame_sequence_options(options)
+      if options.frame_sequence
+        validate_positive_int("--frame-sequence-count", options.frame_sequence_count)
+        if options.frame_sequence_step && !options.frame_sequence_step.to_f.finite?
+          raise OptionParser::InvalidArgument, "--frame-sequence-step must be finite"
+        end
+        raise OptionParser::InvalidArgument, "--frame-sequence must include a printf integer placeholder" unless options.frame_sequence.include?("%")
+
+        validate_image_output_path("--frame-sequence", format_frame_sequence_path(options.frame_sequence, 0))
+        return
+      end
+
+      unless options.frame_sequence_count == 1
+        raise OptionParser::InvalidArgument, "--frame-sequence-count requires --frame-sequence"
+      end
+      return unless options.frame_sequence_step
+
+      raise OptionParser::InvalidArgument, "--frame-sequence-step requires --frame-sequence"
+    rescue ArgumentError => e
+      raise OptionParser::InvalidArgument, "--frame-sequence pattern is invalid: #{e.message}"
     end
 
     def self.validate_batch_options(options)
       return unless options.window_only
-      return unless options.smoke_frame || options.screenshot || options.benchmark
+      return unless options.smoke_frame || options.screenshot || options.benchmark || options.frame_sequence
 
       raise OptionParser::InvalidArgument, "--window-only cannot be combined with render batch options"
+    end
+
+    def self.format_frame_sequence_path(pattern, index)
+      format(pattern, index)
     end
 
     def self.apply_render_scale(options, explicit_render_size:)
@@ -541,14 +578,15 @@ module ThreeDgcViewer
     end
 
     def batch_render_mode?
-      @options.smoke_frame || @options.screenshot || @options.benchmark
+      @options.smoke_frame || @options.screenshot || @options.benchmark || @options.frame_sequence
     end
 
     def run_batch_render(window, state)
-      render_once(window, state) unless @options.benchmark && !@options.smoke_frame
+      render_once(window, state) unless (@options.benchmark || @options.frame_sequence) && !@options.smoke_frame
       run_smoke_resize(window, state) if @options.smoke_resize
       run_smoke_camera(window, state) if @options.smoke_camera
       run_benchmark(window, state) if @options.benchmark
+      run_frame_sequence(window, state) if @options.frame_sequence
       save_screenshot(state) if @options.screenshot
       return unless @options.assert_render_nonzero
 
@@ -579,6 +617,24 @@ module ThreeDgcViewer
     def save_screenshot(state)
       state.save_screenshot(@options.screenshot)
       @logger.info("screenshot saved: #{@options.screenshot}")
+    end
+
+    def run_frame_sequence(window, state)
+      count = @options.frame_sequence_count
+      step = @options.frame_sequence_step || default_frame_sequence_step(count)
+      count.times do |index|
+        state.set_time(@options.time + index * step)
+        render_once(window, state)
+        path = self.class.format_frame_sequence_path(@options.frame_sequence, index)
+        state.save_screenshot(path)
+        @logger.info("sequence frame saved: #{path}")
+      end
+    end
+
+    def default_frame_sequence_step(count)
+      return 0.0 if count <= 1
+
+      1.0 / count
     end
 
     def render_once(window, state)
