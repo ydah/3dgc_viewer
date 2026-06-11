@@ -216,6 +216,28 @@ module ThreeDgcViewer
       end
     end
 
+    def render_texture_statistics
+      bytes = render_texture_rgba_bytes
+      stats = {
+        width: @render_width,
+        height: @render_height,
+        pixels: @render_width * @render_height,
+        nonzero_rgb_pixels: 0,
+        rgb_sum: 0,
+        alpha_sum: 0,
+        checksum: fnv1a32(bytes)
+      }
+      bytes.bytes.each_slice(4) do |red, green, blue, alpha|
+        red = red.to_i
+        green = green.to_i
+        blue = blue.to_i
+        stats[:nonzero_rgb_pixels] += 1 if red.positive? || green.positive? || blue.positive?
+        stats[:rgb_sum] += red + green + blue
+        stats[:alpha_sum] += alpha.to_i
+      end
+      stats
+    end
+
     def render_texture_rgba_bytes
       data, row_bytes, bytes_per_row = read_render_texture_rows
       return data.byteslice(0, row_bytes * @render_height).to_s.b if row_bytes == bytes_per_row
@@ -524,6 +546,15 @@ module ThreeDgcViewer
 
     def positive_int(value)
       [value.to_i, 1].max
+    end
+
+    def fnv1a32(bytes)
+      hash = 0x811c9dc5
+      bytes.each_byte do |byte|
+        hash ^= byte
+        hash = (hash * 0x01000193) & 0xffffffff
+      end
+      hash
     end
 
     def configure_surface

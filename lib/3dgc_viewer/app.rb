@@ -58,7 +58,7 @@ module ThreeDgcViewer
       :log_json, :debug_errors,
       :hidden, :smoke_frame, :smoke_resize,
       :smoke_camera, :assert_render_nonzero,
-      :screenshot, :benchmark, :frame_sequence, :frame_sequence_count, :frame_sequence_step,
+      :print_render_stats, :screenshot, :benchmark, :frame_sequence, :frame_sequence_count, :frame_sequence_step,
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :time_range, :pause, :turntable_speed, :power_preference, :present_mode,
       :background_color, :exposure, :gamma, :brightness, :contrast,
@@ -105,6 +105,7 @@ module ThreeDgcViewer
         smoke_resize: false,
         smoke_camera: false,
         assert_render_nonzero: false,
+        print_render_stats: false,
         screenshot: nil,
         benchmark: nil,
         frame_sequence: nil,
@@ -200,6 +201,7 @@ module ThreeDgcViewer
         opts.on("--smoke-resize", "During --smoke-frame, resize once and render again") { options.smoke_resize = true }
         opts.on("--smoke-camera", "During --smoke-frame, simulate camera keys and render again") { options.smoke_camera = true }
         opts.on("--assert-render-nonzero", "Fail if the internal render texture has no non-black RGB pixels") { options.assert_render_nonzero = true }
+        opts.on("--print-render-stats", "Print rendered texture pixel statistics and exit") { options.print_render_stats = true }
         opts.on("--screenshot PATH", "Save one rendered frame as .ppm RGB or .pam RGBA and exit") { |value| options.screenshot = value }
         opts.on("--benchmark N", Integer, "Render N frames and print timing, then exit") { |value| options.benchmark = value }
         opts.on("--frame-sequence PATTERN", "Save frame sequence using printf pattern, e.g. frame_%04d.pam") { |value| options.frame_sequence = value }
@@ -454,7 +456,7 @@ module ThreeDgcViewer
 
     def self.validate_batch_options(options)
       return unless options.window_only
-      return unless options.smoke_frame || options.screenshot || options.benchmark || options.frame_sequence
+      return unless options.smoke_frame || options.screenshot || options.benchmark || options.frame_sequence || options.print_render_stats
 
       raise OptionParser::InvalidArgument, "--window-only cannot be combined with render batch options"
     end
@@ -757,7 +759,7 @@ module ThreeDgcViewer
     end
 
     def batch_render_mode?
-      @options.smoke_frame || @options.screenshot || @options.benchmark || @options.frame_sequence
+      @options.smoke_frame || @options.screenshot || @options.benchmark || @options.frame_sequence || @options.print_render_stats
     end
 
     def run_batch_render(window, state)
@@ -767,6 +769,7 @@ module ThreeDgcViewer
       run_benchmark(window, state) if @options.benchmark
       run_frame_sequence(window, state) if @options.frame_sequence
       save_screenshot(state) if @options.screenshot
+      print_render_stats(state) if @options.print_render_stats
       return unless @options.assert_render_nonzero
 
       raise WgpuError, "render texture did not contain non-black RGB pixels" unless state.render_texture_rgb_nonzero?
@@ -796,6 +799,19 @@ module ThreeDgcViewer
     def save_screenshot(state)
       state.save_screenshot(@options.screenshot)
       @logger.info("screenshot saved: #{@options.screenshot}")
+    end
+
+    def print_render_stats(state)
+      stats = state.render_texture_statistics
+      return puts_json(stats) if @options.json
+
+      puts "render_width: #{stats[:width]}"
+      puts "render_height: #{stats[:height]}"
+      puts "render_pixels: #{stats[:pixels]}"
+      puts "render_nonzero_rgb_pixels: #{stats[:nonzero_rgb_pixels]}"
+      puts "render_rgb_sum: #{stats[:rgb_sum]}"
+      puts "render_alpha_sum: #{stats[:alpha_sum]}"
+      puts "render_checksum: #{stats[:checksum]}"
     end
 
     def run_frame_sequence(window, state)

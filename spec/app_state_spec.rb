@@ -156,6 +156,24 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(state.camera.eye).not_to eq(eye_after_pan)
   end
 
+  it "summarizes render texture pixels for batch verification" do
+    state = described_class.new(FakeWindow.new(1280, 720), render_width: 2, render_height: 1)
+    rgba = [1, 2, 3, 4, 0, 0, 0, 5].pack("C*")
+    state.define_singleton_method(:render_texture_rgba_bytes) { rgba }
+
+    stats = state.render_texture_statistics
+
+    expect(stats).to include(
+      width: 2,
+      height: 1,
+      pixels: 2,
+      nonzero_rgb_pixels: 1,
+      rgb_sum: 6,
+      alpha_sum: 9
+    )
+    expect(stats[:checksum]).to be_a(Integer)
+  end
+
   it "updates the window title after loading a file" do
     file = build_ply_file(".notply")
     window = FakeWindow.new(1280, 720)

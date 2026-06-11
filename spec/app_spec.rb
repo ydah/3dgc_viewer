@@ -240,6 +240,8 @@ RSpec.describe ThreeDgcViewer::App do
       .to raise_error(OptionParser::InvalidArgument, /screenshot/)
     expect { described_class.parse_options(%w[--window-only --benchmark 1]) }
       .to raise_error(OptionParser::InvalidArgument, /window-only/)
+    expect { described_class.parse_options(%w[--window-only --print-render-stats]) }
+      .to raise_error(OptionParser::InvalidArgument, /window-only/)
   end
 
   it "rejects invalid frame sequence options" do
