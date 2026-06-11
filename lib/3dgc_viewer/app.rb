@@ -39,6 +39,7 @@ module ThreeDgcViewer
       :smoke_camera, :assert_render_nonzero,
       :eye, :target, :up, :fov, :znear, :zfar,
       :time, :time_speed, :pause, :power_preference, :present_mode,
+      :background_color, :exposure, :gamma,
       keyword_init: true
     )
 
@@ -77,7 +78,10 @@ module ThreeDgcViewer
         time_speed: Scene::TIME_SPEED,
         pause: false,
         power_preference: :high_performance,
-        present_mode: nil
+        present_mode: nil,
+        background_color: [0.0, 0.0, 0.0, 1.0],
+        exposure: 1.0,
+        gamma: 1.0
       )
       explicit_render_size = false
 
@@ -109,6 +113,9 @@ module ThreeDgcViewer
         opts.on("--pause", "Start 4D playback paused") { options.pause = true }
         opts.on("--power-preference VALUE", "high-performance/low-power") { |value| options.power_preference = parse_power_preference(value) }
         opts.on("--present-mode MODE", "fifo/mailbox/immediate") { |value| options.present_mode = parse_present_mode(value) }
+        opts.on("--background-color COLOR", "#rrggbb, #rrggbbaa, or r,g,b[,a]") { |value| options.background_color = parse_color(value) }
+        opts.on("--exposure N", Float, "Render exposure multiplier") { |value| options.exposure = value }
+        opts.on("--gamma N", Float, "Output gamma") { |value| options.gamma = value }
         opts.on("--log-level LEVEL", "debug/info/warn/error") { |value| options.log_level = value }
         opts.on("--wgpu-native PATH", "Path to libwgpu_native") { |value| options.wgpu_native = value }
         opts.on("--glfw PATH", "Path to libglfw") { |value| options.glfw = value }
@@ -142,6 +149,7 @@ module ThreeDgcViewer
       validate_dimension("--render-height", options.render_height, MAX_RENDER_DIMENSION)
       validate_camera_options(options)
       validate_time_options(options)
+      validate_tone_options(options)
       validate_log_level(options.log_level)
       validate_file(options.file) if options.file
       validate_positive_int("--max-pairs", options.max_pairs) if options.max_pairs
@@ -179,6 +187,34 @@ module ThreeDgcViewer
       end
     end
 
+    def self.parse_color(value)
+      text = value.to_s.strip
+      return parse_hex_color(text) if text.start_with?("#")
+
+      parts = text.split(",")
+      unless [3, 4].include?(parts.length)
+        raise OptionParser::InvalidArgument, "--background-color must be #rrggbb, #rrggbbaa, or r,g,b[,a]"
+      end
+
+      color = parts.map { |part| Float(part, exception: false) }
+      unless color.all? { |component| component&.finite? && component >= 0.0 && component <= 1.0 }
+        raise OptionParser::InvalidArgument, "--background-color components must be finite values from 0 to 1"
+      end
+      color << 1.0 if color.length == 3
+      color
+    end
+
+    def self.parse_hex_color(text)
+      hex = text.delete_prefix("#")
+      unless hex.match?(/\A[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\z/)
+        raise OptionParser::InvalidArgument, "--background-color hex must be #rrggbb or #rrggbbaa"
+      end
+
+      hex.scan(/../).map { |pair| pair.to_i(16) / 255.0 }.tap do |color|
+        color << 1.0 if color.length == 3
+      end
+    end
+
     def self.validate_dimension(name, value, max)
       validate_positive_int(name, value)
       raise OptionParser::InvalidArgument, "#{name} must be <= #{max}" if value.to_i > max
@@ -207,6 +243,11 @@ module ThreeDgcViewer
     def self.validate_time_options(options)
       raise OptionParser::InvalidArgument, "--time must be finite" unless options.time.to_f.finite?
       raise OptionParser::InvalidArgument, "--time-speed must be finite" unless options.time_speed.to_f.finite?
+    end
+
+    def self.validate_tone_options(options)
+      raise OptionParser::InvalidArgument, "--exposure must be positive" unless options.exposure.to_f.positive?
+      raise OptionParser::InvalidArgument, "--gamma must be positive" unless options.gamma.to_f.positive?
     end
 
     def self.validate_file(path)
@@ -302,7 +343,10 @@ module ThreeDgcViewer
         time_speed: @options.time_speed,
         time_paused: @options.pause,
         power_preference: @options.power_preference,
-        present_mode: @options.present_mode
+        present_mode: @options.present_mode,
+        background_color: @options.background_color,
+        exposure: @options.exposure,
+        gamma: @options.gamma
       )
       install_state_callbacks(window, state)
       state.initialize_gpu

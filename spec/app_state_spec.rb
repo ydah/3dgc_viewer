@@ -65,7 +65,10 @@ RSpec.describe ThreeDgcViewer::AppState do
       initial_camera: camera,
       initial_time: 0.25,
       time_speed: 2.0,
-      time_paused: true
+      time_paused: true,
+      background_color: [0.1, 0.2, 0.3, 1.0],
+      exposure: 1.5,
+      gamma: 2.2
     )
 
     expect(state.camera.eye).to eq([1.0, 2.0, 3.0])
@@ -74,6 +77,9 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect(state.scene_uniform.time).to eq(0.25)
     expect(state.time_speed).to eq(2.0)
     expect(state.time_paused).to eq(true)
+    expect(state.scene_uniform.background_color).to eq([0.1, 0.2, 0.3, 1.0])
+    expect(state.scene_uniform.exposure).to eq(1.5)
+    expect(state.scene_uniform.gamma).to eq(2.2)
   end
 
   it "handles fit reset and axis toggle shortcuts" do

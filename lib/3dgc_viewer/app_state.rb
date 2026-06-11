@@ -24,7 +24,8 @@ module ThreeDgcViewer
                    render_width: Scene::SCREEN_WIDTH, render_height: Scene::SCREEN_HEIGHT,
                    follow_window_render_size: false, initial_camera: nil,
                    initial_time: 0.0, time_speed: Scene::TIME_SPEED, time_paused: false,
-                   power_preference: :high_performance, present_mode: nil)
+                   power_preference: :high_performance, present_mode: nil,
+                   background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0)
       @window = window
       @logger = logger
       @show_axis = show_axis
@@ -51,7 +52,13 @@ module ThreeDgcViewer
       @camera = copy_camera(@default_camera)
       @camera_controller = CameraController.new
       @camera_controller.sync_from_camera(@camera)
-      @scene_uniform = SceneUniform.new(screen_width: @render_width, screen_height: @render_height)
+      @scene_uniform = SceneUniform.new(
+        screen_width: @render_width,
+        screen_height: @render_height,
+        background_color: background_color,
+        exposure: exposure,
+        gamma: gamma
+      )
       @scene_uniform.update_camera(@camera)
       @scene_uniform.set_time(initial_time)
       @resources = build_gaussian_resources(Gaussian::GaussianSet.new(kind: :gaussian3d, items: []))

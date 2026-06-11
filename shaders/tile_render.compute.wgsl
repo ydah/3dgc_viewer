@@ -12,6 +12,9 @@ struct SceneUniform {
     tan_fov: vec2<f32>,
     time: f32,
     _pad0: u32,
+    background_color: vec4<f32>,
+    exposure_gamma: vec2<f32>,
+    _pad1: vec2<u32>,
 };
 
 struct PreprocessOutput {
@@ -58,6 +61,12 @@ var<workgroup> sh_c: array<f32, 256>;
 var<workgroup> sh_opacity: array<f32, 256>;
 var<workgroup> sh_color: array<vec3<f32>, 256>;
 
+fn apply_tone(color: vec3<f32>) -> vec3<f32> {
+    let exposure = scene.exposure_gamma.x;
+    let gamma = scene.exposure_gamma.y;
+    return pow(max(color * exposure, vec3<f32>(0.0)), vec3<f32>(1.0 / gamma));
+}
+
 @compute @workgroup_size(TILE_W, TILE_H, 1)
 fn main(
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
@@ -84,7 +93,7 @@ fn main(
     // empty tile
     if start == 0xffffffffu || end == 0xffffffffu || start >= end {
         if !skip_pixel {
-            textureStore(output_tex, vec2<i32>(i32(px), i32(py)), vec4<f32>(0.0, 0.0, 0.0, 1.0));
+            textureStore(output_tex, vec2<i32>(i32(px), i32(py)), vec4<f32>(apply_tone(scene.background_color.rgb), scene.background_color.a));
         }
         return;
     }
@@ -167,6 +176,7 @@ fn main(
     }
 
     if !skip_pixel {
-        textureStore(output_tex, vec2<i32>(i32(px), i32(py)), vec4<f32>(accum, 1.0));
+        let color = accum + scene.background_color.rgb * T;
+        textureStore(output_tex, vec2<i32>(i32(px), i32(py)), vec4<f32>(apply_tone(color), scene.background_color.a));
     }
 }

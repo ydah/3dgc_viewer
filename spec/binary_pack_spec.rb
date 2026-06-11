@@ -40,15 +40,18 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
     expect(gaussian.pack.bytesize).to eq(144)
   end
 
-  it "packs SceneUniform to 176 bytes" do
+  it "packs SceneUniform to 208 bytes" do
     camera = ThreeDgcViewer::Camera.default(width: 1280, height: 720)
-    uniform = ThreeDgcViewer::SceneUniform.new
+    uniform = ThreeDgcViewer::SceneUniform.new(background_color: [0.1, 0.2, 0.3, 1.0], exposure: 1.5, gamma: 2.2)
     uniform.update_camera(camera)
     uniform.update_gaussian_count(0)
     uniform.update_screen_size(321, 181)
 
-    expect(uniform.pack.bytesize).to eq(176)
+    expect(uniform.pack.bytesize).to eq(208)
     expect(uniform.screen_size).to eq([321, 181])
+    expect(uniform.background_color).to eq([0.1, 0.2, 0.3, 1.0])
+    expect(uniform.exposure).to eq(1.5)
+    expect(uniform.gamma).to eq(2.2)
   end
 
   it "updates SceneUniform time with runtime playback speed" do

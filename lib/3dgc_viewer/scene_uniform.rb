@@ -6,9 +6,11 @@ require_relative "scene"
 
 module ThreeDgcViewer
   class SceneUniform
-    attr_reader :view, :proj, :view_pos, :gaussian_count, :screen_size, :near_far, :tan_fov, :time
+    attr_reader :view, :proj, :view_pos, :gaussian_count, :screen_size, :near_far,
+                :tan_fov, :time, :background_color, :exposure, :gamma
 
-    def initialize(screen_width: Scene::SCREEN_WIDTH, screen_height: Scene::SCREEN_HEIGHT)
+    def initialize(screen_width: Scene::SCREEN_WIDTH, screen_height: Scene::SCREEN_HEIGHT,
+                   background_color: [0.0, 0.0, 0.0, 1.0], exposure: 1.0, gamma: 1.0)
       @view = Math3D::Mat4.identity
       @proj = Math3D::Mat4.identity
       @view_pos = [0.0, 0.0, 0.0]
@@ -17,6 +19,9 @@ module ThreeDgcViewer
       @near_far = [0.01, 100.0]
       @tan_fov = [0.0, 0.0]
       @time = 0.0
+      @background_color = normalize_color(background_color)
+      @exposure = exposure.to_f
+      @gamma = gamma.to_f
     end
 
     def update_camera(camera)
@@ -54,7 +59,10 @@ module ThreeDgcViewer
         BinaryPack.f32(@near_far),
         BinaryPack.f32(@tan_fov),
         BinaryPack.f32(@time),
-        BinaryPack.u32(0)
+        BinaryPack.u32(0),
+        BinaryPack.f32(@background_color),
+        BinaryPack.f32(@exposure, @gamma),
+        BinaryPack.u32(0, 0)
       )
     end
 
@@ -62,6 +70,12 @@ module ThreeDgcViewer
 
     def positive_int(value)
       [value.to_i, 1].max
+    end
+
+    def normalize_color(color)
+      values = Array(color).first(4).map(&:to_f)
+      values += [1.0] while values.length < 4
+      values
     end
   end
 end

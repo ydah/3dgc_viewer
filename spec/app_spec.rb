@@ -58,6 +58,9 @@ RSpec.describe ThreeDgcViewer::App do
       --pause
       --power-preference low-power
       --present-mode mailbox
+      --background-color #336699cc
+      --exposure 1.5
+      --gamma 2.2
     ])
 
     expect(options.eye).to eq([1.0, 2.0, 3.0])
@@ -71,6 +74,9 @@ RSpec.describe ThreeDgcViewer::App do
     expect(options.pause).to eq(true)
     expect(options.power_preference).to eq(:low_power)
     expect(options.present_mode).to eq(:mailbox)
+    expect(options.background_color).to eq([0x33 / 255.0, 0x66 / 255.0, 0x99 / 255.0, 0xcc / 255.0])
+    expect(options.exposure).to eq(1.5)
+    expect(options.gamma).to eq(2.2)
   end
 
   it "rejects invalid log level" do
@@ -88,6 +94,15 @@ RSpec.describe ThreeDgcViewer::App do
       .to raise_error(OptionParser::InvalidArgument, /fov/)
     expect { described_class.parse_options(%w[--up 0,0,0]) }
       .to raise_error(OptionParser::InvalidArgument, /up/)
+  end
+
+  it "rejects invalid tone mapping options" do
+    expect { described_class.parse_options(%w[--background-color 2,0,0]) }
+      .to raise_error(OptionParser::InvalidArgument, /background-color/)
+    expect { described_class.parse_options(%w[--exposure 0]) }
+      .to raise_error(OptionParser::InvalidArgument, /exposure/)
+    expect { described_class.parse_options(%w[--gamma 0]) }
+      .to raise_error(OptionParser::InvalidArgument, /gamma/)
   end
 
   it "checks startup file paths during option parsing" do
