@@ -373,7 +373,7 @@ RSpec.describe ThreeDgcViewer::App do
 
     expect do
       result = described_class.run(["--file", file.path, "--print-scene-info"])
-    end.to output(/kind: gaussian3d\n/).to_stdout
+    end.to output(/kind: gaussian3d\n.*estimated_gpu_buffer_bytes:/m).to_stdout
 
     expect(result).to eq(0)
   ensure
@@ -388,6 +388,12 @@ RSpec.describe ThreeDgcViewer::App do
     data = JSON.parse(output)
     expect(data.fetch("kind")).to eq("gaussian3d")
     expect(data.fetch("gaussians")).to eq(1)
+    expect(data.fetch("resource_estimate")).to include(
+      "render_width" => ThreeDgcViewer::Scene::SCREEN_WIDTH,
+      "render_height" => ThreeDgcViewer::Scene::SCREEN_HEIGHT,
+      "max_pairs" => 32
+    )
+    expect(data.fetch("resource_estimate").fetch("gpu_buffer_bytes")).to be > 0
   ensure
     file&.unlink
   end

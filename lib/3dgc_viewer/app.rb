@@ -601,6 +601,9 @@ module ThreeDgcViewer
       end
       puts "opacity_range: #{stats.opacity_min}, #{stats.opacity_max}" if stats.opacity_min && stats.opacity_max
       puts "scale_range: #{stats.scale_min}, #{stats.scale_max}" if stats.scale_min && stats.scale_max
+      estimate = resource_estimate_hash(gaussian_set)
+      puts "estimated_gpu_buffer_bytes: #{estimate[:gpu_buffer_bytes]}"
+      puts "estimated_gpu_buffer_human: #{estimate[:gpu_buffer_human]}"
       0
     end
 
@@ -692,7 +695,25 @@ module ThreeDgcViewer
         },
         opacity_range: range_or_nil(stats.opacity_min, stats.opacity_max),
         scale_range: range_or_nil(stats.scale_min, stats.scale_max),
+        resource_estimate: resource_estimate_hash(gaussian_set),
         metadata: gaussian_set.metadata
+      }
+    end
+
+    def resource_estimate_hash(gaussian_set)
+      resources = GaussianResources.new(
+        gaussian_set: gaussian_set,
+        render_width: @options.render_width,
+        render_height: @options.render_height,
+        max_pairs: @options.max_pairs,
+        pair_capacity_factor: pair_capacity_factor
+      )
+      {
+        render_width: resources.render_width,
+        render_height: resources.render_height,
+        max_pairs: resources.max_pairs,
+        gpu_buffer_bytes: resources.estimated_buffer_bytes,
+        gpu_buffer_human: format_bytes(resources.estimated_buffer_bytes)
       }
     end
 
@@ -714,6 +735,19 @@ module ThreeDgcViewer
       return nil unless min && max
 
       [min, max]
+    end
+
+    def format_bytes(bytes)
+      units = %w[B KiB MiB GiB TiB]
+      value = bytes.to_f
+      unit = units.first
+      units.each do |candidate|
+        unit = candidate
+        break if value < 1024.0 || candidate == units.last
+
+        value /= 1024.0
+      end
+      "#{value.round(1)} #{unit}"
     end
 
     def run_window_only
