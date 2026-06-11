@@ -295,6 +295,37 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(item.rotation).to eq([1.0, 0.0, 0.0, 0.0])
   end
 
+  it "parses required 3DGS properties regardless of vertex property order" do
+    ordered_values = {
+      "x" => 1.0,
+      "y" => 2.0,
+      "z" => 3.0,
+      "opacity" => 0.4,
+      "scale_0" => 0.1,
+      "scale_1" => 0.2,
+      "scale_2" => 0.3,
+      "rot_0" => 1.0,
+      "rot_1" => 0.0,
+      "rot_2" => 0.0,
+      "rot_3" => 0.0,
+      "f_dc_0" => 0.7,
+      "f_dc_1" => 0.8,
+      "f_dc_2" => 0.9
+    }
+    properties = REQUIRED_3D.reverse.map { |name| ["float", name] }
+    row = properties.map { |_type, name| ordered_values.fetch(name) }
+
+    item = described_class.parse_bytes(build_ply(properties, [row])).items.first
+
+    expect(item.position).to eq([1.0, 2.0, 3.0])
+    expect(item.scale[0]).to be_within(1e-6).of(0.1)
+    expect(item.scale[1]).to be_within(1e-6).of(0.2)
+    expect(item.scale[2]).to be_within(1e-6).of(0.3)
+    expect(item.sh[0]).to be_within(1e-6).of(0.7)
+    expect(item.sh[1]).to be_within(1e-6).of(0.8)
+    expect(item.sh[2]).to be_within(1e-6).of(0.9)
+  end
+
   it "parses STG-Lite fields as Gaussian4d" do
     properties = (REQUIRED_3D + REQUIRED_STG).map { |name| ["float", name] }
     row = Array.new(properties.length) { |index| index.to_f }
