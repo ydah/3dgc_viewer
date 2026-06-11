@@ -265,6 +265,7 @@ module ThreeDgcViewer
         @tile_range_pass.recreate_bind_group(resources: @resources)
         @tile_render_pass.recreate_bind_group(resources: @resources, scene_uniform_buffer: @scene_uniform_buffer, render_texture_view: @render_texture_view)
         @screen_blit_pass.recreate_bind_group(resources: @resources, render_texture_view: @render_texture_view, render_texture_sampler: @render_texture_sampler)
+        @axis_pass.recreate_bind_group(resources: @resources, scene_uniform_buffer: @scene_uniform_buffer, axis_length: axis_length_for_bounds(gaussian_set.statistics.bounds))
       end
 
       @scene_type = new_scene_type
@@ -598,8 +599,15 @@ module ThreeDgcViewer
         resources: @resources,
         scene_uniform_buffer: @scene_uniform_buffer,
         surface_format: @surface_format,
+        axis_length: axis_length_for_bounds(@scene_bounds),
         shader_loader: @shader_loader
       )
+    end
+
+    def axis_length_for_bounds(bounds)
+      return Passes::AxisPass::DEFAULT_AXIS_LENGTH if bounds.nil? || bounds.empty?
+
+      [bounds.radius * 1.25, Passes::AxisPass::MIN_AXIS_LENGTH].max
     end
 
     def render_gpu_frame

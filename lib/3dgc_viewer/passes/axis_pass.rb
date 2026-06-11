@@ -7,31 +7,37 @@ module ThreeDgcViewer
   module Passes
     class AxisPass < BasePass
       SHADER_NAME = "axis.wgsl"
-      AXIS_LENGTH = 10_000.0
+      DEFAULT_AXIS_LENGTH = 10_000.0
+      MIN_AXIS_LENGTH = 1.0
 
-      VERTICES = [
-        [-AXIS_LENGTH, 0.0, 0.0, 1.0, 0.1, 0.1],
-        [AXIS_LENGTH, 0.0, 0.0, 1.0, 0.1, 0.1],
-        [0.0, -AXIS_LENGTH, 0.0, 0.1, 1.0, 0.1],
-        [0.0, AXIS_LENGTH, 0.0, 0.1, 1.0, 0.1],
-        [0.0, 0.0, -AXIS_LENGTH, 0.1, 0.3, 1.0],
-        [0.0, 0.0, AXIS_LENGTH, 0.1, 0.3, 1.0]
-      ].freeze
-
-      def self.vertex_bytes
-        BinaryPack.f32(VERTICES)
+      def self.vertices(axis_length = DEFAULT_AXIS_LENGTH)
+        length = [axis_length.to_f, MIN_AXIS_LENGTH].max
+        [
+          [-length, 0.0, 0.0, 1.0, 0.1, 0.1],
+          [length, 0.0, 0.0, 1.0, 0.1, 0.1],
+          [0.0, -length, 0.0, 0.1, 1.0, 0.1],
+          [0.0, length, 0.0, 0.1, 1.0, 0.1],
+          [0.0, 0.0, -length, 0.1, 0.3, 1.0],
+          [0.0, 0.0, length, 0.1, 0.3, 1.0]
+        ]
       end
 
-      def initialize(scene_uniform_buffer: nil, surface_format: nil, **kwargs)
+      def self.vertex_bytes(axis_length = DEFAULT_AXIS_LENGTH)
+        BinaryPack.f32(vertices(axis_length))
+      end
+
+      def initialize(scene_uniform_buffer: nil, surface_format: nil, axis_length: DEFAULT_AXIS_LENGTH, **kwargs)
         super(**kwargs)
         @scene_uniform_buffer = scene_uniform_buffer
         @surface_format = surface_format
+        @axis_length = axis_length
         create_pipeline if gpu_enabled? && @scene_uniform_buffer && @surface_format
       end
 
-      def recreate_bind_group(resources: @resources, scene_uniform_buffer: @scene_uniform_buffer, **_kwargs)
+      def recreate_bind_group(resources: @resources, scene_uniform_buffer: @scene_uniform_buffer, axis_length: @axis_length, **_kwargs)
         @resources = resources
         @scene_uniform_buffer = scene_uniform_buffer
+        @axis_length = axis_length
         release
         @released = false
         @gpu_objects = []
@@ -63,7 +69,7 @@ module ThreeDgcViewer
       private
 
       def create_pipeline
-        @vertex_buffer = static_buffer("Axis Vertex Buffer", self.class.vertex_bytes, usage: [:vertex])
+        @vertex_buffer = static_buffer("Axis Vertex Buffer", self.class.vertex_bytes(@axis_length), usage: [:vertex])
         @bind_group_layout = keep(@device.create_bind_group_layout(
           label: "Axis BGL",
           entries: [buffer_layout(0, type: :uniform, visibility: :vertex)]
