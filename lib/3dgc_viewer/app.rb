@@ -617,13 +617,15 @@ module ThreeDgcViewer
     end
 
     def print_gpu_info
-      return puts_json(gpu_info_hash) if @options.json
+      info = gpu_info_hash
+      return puts_json(info) if @options.json
 
-      puts "platform: #{LibraryLocator.platform}"
-      print_location("wgpu_native", LibraryLocator.wgpu_native_location)
-      print_location("glfw", LibraryLocator.glfw_location)
-      print_location("surface_shim", LibraryLocator.surface_shim_location)
-      puts "shader_dir: #{LibraryLocator.shader_dir}"
+      puts "platform: #{info[:platform]}"
+      print_location("wgpu_native", LibraryLocator::Location.new(**info[:wgpu_native]))
+      print_wgpu_gem_info(info[:wgpu_gem])
+      print_location("glfw", LibraryLocator::Location.new(**info[:glfw]))
+      print_location("surface_shim", LibraryLocator::Location.new(**info[:surface_shim]))
+      puts "shader_dir: #{info[:shader_dir]}"
       0
     end
 
@@ -637,18 +639,7 @@ module ThreeDgcViewer
       print_location("wgpu_native", LibraryLocator.wgpu_native_location)
       print_location("glfw", LibraryLocator.glfw_location)
       print_location("surface_shim", LibraryLocator.surface_shim_location)
-      puts "wgpu_gem: #{diagnostics[:wgpu_gem][:version] || "not found"}"
-      puts "wgpu_gem_requirement: #{diagnostics[:wgpu_gem][:requirement]}"
-      puts "wgpu_gem_compatible: #{diagnostics[:wgpu_gem][:compatible]}"
-      if diagnostics[:wgpu_gem][:native_library]
-        puts "wgpu_gem_native: #{diagnostics[:wgpu_gem][:native_library]}"
-      end
-      if diagnostics[:wgpu_gem].key?(:native_library_matches_locator)
-        puts "wgpu_gem_native_matches_locator: #{diagnostics[:wgpu_gem][:native_library_matches_locator]}"
-      end
-      if diagnostics[:wgpu_gem][:load_error]
-        puts "wgpu_gem_load_error: #{diagnostics[:wgpu_gem][:load_error]}"
-      end
+      print_wgpu_gem_info(diagnostics[:wgpu_gem])
       puts "windowing_hint: #{diagnostics[:windowing][:hint]}"
       puts "display: #{diagnostics[:windowing][:display] || "<unset>"}"
       puts "wayland_display: #{diagnostics[:windowing][:wayland_display] || "<unset>"}"
@@ -758,9 +749,11 @@ module ThreeDgcViewer
     end
 
     def gpu_info_hash
+      wgpu_native_location = LibraryLocator.wgpu_native_location
       {
         platform: LibraryLocator.platform,
-        wgpu_native: location_hash(LibraryLocator.wgpu_native_location),
+        wgpu_native: location_hash(wgpu_native_location),
+        wgpu_gem: wgpu_gem_hash(wgpu_native_location),
         glfw: location_hash(LibraryLocator.glfw_location),
         surface_shim: location_hash(LibraryLocator.surface_shim_location),
         shader_dir: LibraryLocator.shader_dir
@@ -791,6 +784,17 @@ module ThreeDgcViewer
 
     def location_hash(location)
       {path: location.path, source: location.source, exists: location.exists}
+    end
+
+    def print_wgpu_gem_info(info)
+      puts "wgpu_gem: #{info[:version] || "not found"}"
+      puts "wgpu_gem_requirement: #{info[:requirement]}"
+      puts "wgpu_gem_compatible: #{info[:compatible]}"
+      puts "wgpu_gem_native: #{info[:native_library]}" if info[:native_library]
+      if info.key?(:native_library_matches_locator)
+        puts "wgpu_gem_native_matches_locator: #{info[:native_library_matches_locator]}"
+      end
+      puts "wgpu_gem_load_error: #{info[:load_error]}" if info[:load_error]
     end
 
     def windowing_hash

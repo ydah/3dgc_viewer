@@ -415,7 +415,7 @@ RSpec.describe ThreeDgcViewer::App do
 
     expect do
       result = described_class.run(["--print-gpu-info"])
-    end.to output(/platform:/).to_stdout
+    end.to output(/platform:.*wgpu_gem:/m).to_stdout
 
     expect(result).to eq(0)
   end
@@ -424,7 +424,8 @@ RSpec.describe ThreeDgcViewer::App do
     output = capture_stdout { described_class.run(%w[--print-gpu-info --json]) }
     data = JSON.parse(output)
 
-    expect(data).to include("platform", "wgpu_native", "glfw", "surface_shim")
+    expect(data).to include("platform", "wgpu_native", "wgpu_gem", "glfw", "surface_shim")
+    expect(data.fetch("wgpu_gem")).to include("version", "requirement", "compatible")
   end
 
   it "prints startup diagnostics as JSON without initializing the window" do
