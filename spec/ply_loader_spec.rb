@@ -54,6 +54,41 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(set.items.first.sh[1]).to be_within(1e-6).of(0.8)
     expect(set.items.first.sh[2]).to be_within(1e-6).of(0.9)
     expect(set.items.first.sh[3..]).to all(eq(0.0))
+    expect(set.count).to eq(1)
+    expect(set.statistics.bounds.min).to eq([1.0, 2.0, 3.0])
+    expect(set.statistics.bounds.max).to eq([1.0, 2.0, 3.0])
+    expect(set.statistics.opacity_min).to be_within(1e-6).of(0.4)
+    expect(set.statistics.scale_max).to be_within(1e-6).of(0.3)
+  end
+
+  it "can parse without retaining Gaussian objects" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    rows = [
+      [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9],
+      [-1.0, -2.0, -3.0, 0.5, 0.3, 0.2, 0.1, 1.0, 0.0, 0.0, 0.0, 0.6, 0.5, 0.4]
+    ]
+
+    set = described_class.parse_bytes(build_ply(properties, rows), retain_items: false)
+
+    expect(set.items).to be_empty
+    expect(set.count).to eq(2)
+    expect(set.packed_bytes.bytesize).to eq(2 * ThreeDgcViewer::Gaussian.item_size(:gaussian3d))
+    expect(set.statistics.bounds.min).to eq([-1.0, -2.0, -3.0])
+    expect(set.statistics.bounds.max).to eq([1.0, 2.0, 3.0])
+  end
+
+  it "skips non-finite Gaussian rows and reports invalid count" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    rows = [
+      [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9],
+      [Float::NAN, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]
+    ]
+
+    set = described_class.parse_bytes(build_ply(properties, rows))
+
+    expect(set.count).to eq(1)
+    expect(set.items.length).to eq(1)
+    expect(set.statistics.invalid_count).to eq(1)
   end
 
   it "rejects ascii PLY" do

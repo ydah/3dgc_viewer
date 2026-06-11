@@ -25,7 +25,7 @@ module ThreeDgcViewer
       @device = device
       @queue = queue
       @gaussian_set = gaussian_set
-      @gaussian_count = gaussian_set.items.length
+      @gaussian_count = gaussian_set.count
       @count1 = [@gaussian_count, 1].max
       @max_pairs = [max_pairs || (@count1 * 32), 1].max
       @max_blocks0 = ceil_div(@count1, 256)

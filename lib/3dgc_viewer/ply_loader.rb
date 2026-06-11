@@ -2,9 +2,16 @@
 
 require_relative "errors"
 require_relative "gaussian"
+require "stringio"
 
 module ThreeDgcViewer
   class PlyLoader
+    MAX_HEADER_BYTES = 1 * 1024 * 1024
+    MAX_VERTEX_COUNT = 100_000_000
+    MAX_VERTEX_STRIDE = 64 * 1024
+    MAX_VERTEX_PROPERTIES = 512
+    MAX_PROPERTY_NAME_BYTES = 256
+
     REQUIRED_3DGS_FIELDS = %w[
       x y z opacity scale_0 scale_1 scale_2
       rot_0 rot_1 rot_2 rot_3
@@ -37,18 +44,22 @@ module ThreeDgcViewer
     }.freeze
 
     Property = Struct.new(:name, :type, :offset, :size, keyword_init: true)
-    Header = Struct.new(:format, :header_end, :vertex_count, :vertex_stride, :properties, keyword_init: true)
+    Header = Struct.new(
+      :format, :header_end, :vertex_count, :vertex_stride,
+      :properties, :property_map, keyword_init: true
+    )
 
-    def self.parse_file(path)
-      parse_bytes(File.binread(path))
+    def self.parse_file(path, retain_items: true)
+      File.open(path, "rb") { |io| new(io, retain_items: retain_items).parse }
     end
 
-    def self.parse_bytes(bytes)
-      new(bytes.b).parse
+    def self.parse_bytes(bytes, retain_items: true)
+      new(StringIO.new(bytes.b), retain_items: retain_items).parse
     end
 
-    def initialize(bytes)
-      @bytes = bytes
+    def initialize(io, retain_items: true)
+      @io = io
+      @retain_items = retain_items
     end
 
     def parse
@@ -58,9 +69,9 @@ module ThreeDgcViewer
       kind = classify(header)
       case kind
       when :gaussian3d
-        Gaussian::GaussianSet.new(kind: kind, items: parse_gaussian3d(header))
+        parse_gaussian3d(header)
       when :gaussian4d
-        Gaussian::GaussianSet.new(kind: kind, items: parse_gaussian4d(header))
+        parse_gaussian4d(header)
       else
         raise PlyError, "unsupported or incomplete Gaussian PLY payload"
       end
@@ -69,25 +80,33 @@ module ThreeDgcViewer
     private
 
     def parse_header
-      marker = "end_header\n"
-      marker_index = @bytes.index(marker)
-      unless marker_index
-        marker = "end_header\r\n"
-        marker_index = @bytes.index(marker)
-      end
-      raise PlyError, "PLY header is missing end_header" unless marker_index
+      header_text = +""
+      header_end = 0
 
-      header_end = marker_index + marker.bytesize
-      header_text = @bytes.byteslice(0, header_end).dup.force_encoding(Encoding::UTF_8)
+      while (line = @io.gets)
+        header_text << line
+        header_end += line.bytesize
+        raise PlyError, "PLY header exceeds #{MAX_HEADER_BYTES} bytes" if header_end > MAX_HEADER_BYTES
+        break if line.strip == "end_header"
+      end
+
+      raise PlyError, "PLY header is missing end_header" unless header_text.lines.last&.strip == "end_header"
+
+      header_text = header_text.dup.force_encoding(Encoding::UTF_8)
       raise PlyError, "PLY header is not valid UTF-8" unless header_text.valid_encoding?
+
+      lines = header_text.each_line
+      first_line = lines.next&.strip
+      raise PlyError, "PLY header must start with ply" unless first_line == "ply"
 
       format = nil
       vertex_count = nil
       in_vertex = false
       offset = 0
       properties = []
+      property_map = {}
 
-      header_text.each_line do |line|
+      lines.each do |line|
         tokens = line.strip.split(/\s+/)
         next if tokens.empty?
 
@@ -101,8 +120,13 @@ module ThreeDgcViewer
           next unless in_vertex
 
           property = parse_property(tokens, offset)
+          raise PlyError, "duplicate PLY vertex property: #{property.name}" if property_map.key?(property.name)
+          raise PlyError, "too many PLY vertex properties" if properties.length >= MAX_VERTEX_PROPERTIES
+
           properties << property
+          property_map[property.name] = property
           offset += property.size
+          raise PlyError, "PLY vertex stride exceeds #{MAX_VERTEX_STRIDE} bytes" if offset > MAX_VERTEX_STRIDE
         end
       end
 
@@ -116,7 +140,8 @@ module ThreeDgcViewer
         header_end: header_end,
         vertex_count: vertex_count,
         vertex_stride: offset,
-        properties: properties
+        properties: properties,
+        property_map: property_map
       )
     end
 
@@ -137,7 +162,11 @@ module ThreeDgcViewer
     def parse_vertex_count(tokens)
       raise PlyError, "invalid element vertex line" unless tokens.length >= 3
 
-      Integer(tokens[2], exception: false) || raise(PlyError, "invalid vertex count: #{tokens[2].inspect}")
+      count = Integer(tokens[2], exception: false) || raise(PlyError, "invalid vertex count: #{tokens[2].inspect}")
+      raise PlyError, "vertex count must be non-negative" if count.negative?
+      raise PlyError, "vertex count exceeds #{MAX_VERTEX_COUNT}" if count > MAX_VERTEX_COUNT
+
+      count
     end
 
     def parse_property(tokens, offset)
@@ -147,13 +176,17 @@ module ThreeDgcViewer
       scalar = SCALAR_TYPES[tokens[1]]
       raise PlyError, "unsupported PLY scalar type: #{tokens[1]}" unless scalar
 
+      raise PlyError, "PLY property name is too long" if tokens[2].bytesize > MAX_PROPERTY_NAME_BYTES
+
       Property.new(name: tokens[2], type: scalar[0], offset: offset, size: scalar[1])
     end
 
     def validate_body_size(header)
       expected_body_size = header.vertex_count * header.vertex_stride
       expected_total_size = header.header_end + expected_body_size
-      raise PlyError, "PLY body is too short" if @bytes.bytesize < expected_total_size
+      return unless @io.respond_to?(:size)
+
+      raise PlyError, "PLY body is too short" if @io.size < expected_total_size
     end
 
     def classify(header)
@@ -176,79 +209,156 @@ module ThreeDgcViewer
     def parse_gaussian3d(header)
       require_properties(header, REQUIRED_3DGS_FIELDS)
 
-      header.vertex_count.times.map do |index|
-        base = header.header_end + (index * header.vertex_stride)
-        sh = [
-          read(header, base, "f_dc_0"),
-          read(header, base, "f_dc_1"),
-          read(header, base, "f_dc_2")
-        ]
-        45.times { |i| sh << read(header, base, "f_rest_#{i}", default: 0.0) }
+      items = @retain_items ? [] : nil
+      packed = +"".b
+      statistics = StatisticsBuilder.new
 
-        Gaussian::Gaussian3d.new(
-          position: [read(header, base, "x"), read(header, base, "y"), read(header, base, "z")],
-          opacity: read(header, base, "opacity"),
-          scale: [read(header, base, "scale_0"), read(header, base, "scale_1"), read(header, base, "scale_2")],
-          rotation: [
-            read(header, base, "rot_0"),
-            read(header, base, "rot_1"),
-            read(header, base, "rot_2"),
-            read(header, base, "rot_3")
-          ],
+      header.vertex_count.times do |index|
+        row = read_row(header, index)
+        sh = [
+          read(header, row, "f_dc_0", vertex_index: index),
+          read(header, row, "f_dc_1", vertex_index: index),
+          read(header, row, "f_dc_2", vertex_index: index)
+        ]
+        45.times { |i| sh << read(header, row, "f_rest_#{i}", default: 0.0, vertex_index: index) }
+
+        position = [
+          read(header, row, "x", vertex_index: index),
+          read(header, row, "y", vertex_index: index),
+          read(header, row, "z", vertex_index: index)
+        ]
+        opacity = read(header, row, "opacity", vertex_index: index)
+        scale = [
+          read(header, row, "scale_0", vertex_index: index),
+          read(header, row, "scale_1", vertex_index: index),
+          read(header, row, "scale_2", vertex_index: index)
+        ]
+        rotation = [
+          read(header, row, "rot_0", vertex_index: index),
+          read(header, row, "rot_1", vertex_index: index),
+          read(header, row, "rot_2", vertex_index: index),
+          read(header, row, "rot_3", vertex_index: index)
+        ]
+
+        unless gaussian_finite?(position, [opacity], scale, rotation, sh)
+          statistics.record_invalid
+          next
+        end
+
+        item = Gaussian::Gaussian3d.new(
+          position: position,
+          opacity: opacity,
+          scale: scale,
+          rotation: rotation,
           sh: sh
         )
+        statistics.record(position: position, opacity: opacity, scale: scale)
+        items << item if items
+        packed << item.pack
       end
+
+      gaussian_set(:gaussian3d, items, packed, statistics)
     end
 
     def parse_gaussian4d(header)
       require_properties(header, REQUIRED_3DGS_FIELDS + REQUIRED_STG_LITE_FIELDS)
 
-      header.vertex_count.times.map do |index|
-        base = header.header_end + (index * header.vertex_stride)
-        motion = 9.times.map { |i| read(header, base, "motion_#{i}") }
+      items = @retain_items ? [] : nil
+      packed = +"".b
+      statistics = StatisticsBuilder.new
 
-        Gaussian::Gaussian4d.new(
-          position: [read(header, base, "x"), read(header, base, "y"), read(header, base, "z")],
-          opacity: read(header, base, "opacity"),
-          scale: [read(header, base, "scale_0"), read(header, base, "scale_1"), read(header, base, "scale_2")],
-          rotation: [
-            read(header, base, "rot_0"),
-            read(header, base, "rot_1"),
-            read(header, base, "rot_2"),
-            read(header, base, "rot_3")
-          ],
+      header.vertex_count.times do |index|
+        row = read_row(header, index)
+        motion = 9.times.map { |i| read(header, row, "motion_#{i}", vertex_index: index) }
+        position = [
+          read(header, row, "x", vertex_index: index),
+          read(header, row, "y", vertex_index: index),
+          read(header, row, "z", vertex_index: index)
+        ]
+        opacity = read(header, row, "opacity", vertex_index: index)
+        scale = [
+          read(header, row, "scale_0", vertex_index: index),
+          read(header, row, "scale_1", vertex_index: index),
+          read(header, row, "scale_2", vertex_index: index)
+        ]
+        rotation = [
+          read(header, row, "rot_0", vertex_index: index),
+          read(header, row, "rot_1", vertex_index: index),
+          read(header, row, "rot_2", vertex_index: index),
+          read(header, row, "rot_3", vertex_index: index)
+        ]
+        omega = 4.times.map { |i| read(header, row, "omega_#{i}", vertex_index: index) }
+        trbf_center = read(header, row, "trbf_center", vertex_index: index)
+        trbf_scale = read(header, row, "trbf_scale", vertex_index: index)
+        base_color = [
+          read(header, row, "f_dc_0", vertex_index: index),
+          read(header, row, "f_dc_1", vertex_index: index),
+          read(header, row, "f_dc_2", vertex_index: index)
+        ]
+
+        unless gaussian_finite?(position, [opacity], scale, rotation, motion, omega, [trbf_center, trbf_scale], base_color)
+          statistics.record_invalid
+          next
+        end
+
+        item = Gaussian::Gaussian4d.new(
+          position: position,
+          opacity: opacity,
+          scale: scale,
+          rotation: rotation,
           motion_0: motion[0, 3],
           motion_1: motion[3, 3],
           motion_2: motion[6, 3],
-          omega: 4.times.map { |i| read(header, base, "omega_#{i}") },
-          trbf_center: read(header, base, "trbf_center"),
-          trbf_scale: read(header, base, "trbf_scale"),
-          base_color: [
-            read(header, base, "f_dc_0"),
-            read(header, base, "f_dc_1"),
-            read(header, base, "f_dc_2")
-          ]
+          omega: omega,
+          trbf_center: trbf_center,
+          trbf_scale: trbf_scale,
+          base_color: base_color
         )
+        statistics.record(position: position, opacity: opacity, scale: scale)
+        items << item if items
+        packed << item.pack
       end
+
+      gaussian_set(:gaussian4d, items, packed, statistics)
     end
 
     def require_properties(header, names)
-      property_names = header.properties.map(&:name)
-      missing = names.reject { |name| property_names.include?(name) }
+      missing = names.reject { |name| header.property_map.key?(name) }
       return if missing.empty?
 
       raise PlyError, "missing required PLY vertex properties: #{missing.join(", ")}"
     end
 
-    def read(header, vertex_base, name, default: nil)
-      property = header.properties.find { |candidate| candidate.name == name }
+    def read(header, row, name, default: nil, vertex_index: nil)
+      property = header.property_map[name]
       return default unless property
 
-      absolute_offset = vertex_base + property.offset
-      chunk = @bytes.byteslice(absolute_offset, property.size)
-      raise PlyError, "PLY body is too short" unless chunk&.bytesize == property.size
+      chunk = row.byteslice(property.offset, property.size)
+      raise PlyError, "PLY body is too short at vertex #{vertex_index}" unless chunk&.bytesize == property.size
 
       unpack_scalar(chunk, property.type).to_f
+    end
+
+    def read_row(header, index)
+      row = @io.read(header.vertex_stride)
+      return row if row&.bytesize == header.vertex_stride
+
+      raise PlyError, "PLY body is too short at vertex #{index}"
+    end
+
+    def gaussian_finite?(*groups)
+      groups.flatten.all? { |value| value.to_f.finite? }
+    end
+
+    def gaussian_set(kind, items, packed, statistics)
+      count = statistics.count
+      Gaussian::GaussianSet.new(
+        kind: kind,
+        items: items || [],
+        count: count,
+        packed_bytes: packed,
+        statistics: statistics.to_statistics
+      )
     end
 
     def unpack_scalar(chunk, type)
@@ -263,6 +373,59 @@ module ThreeDgcViewer
       when :d then chunk.unpack1("E")
       else
         raise PlyError, "unsupported scalar reader: #{type.inspect}"
+      end
+    end
+
+    class StatisticsBuilder
+      attr_reader :count
+
+      def initialize
+        @count = 0
+        @invalid_count = 0
+        @min = nil
+        @max = nil
+        @opacity_min = nil
+        @opacity_max = nil
+        @scale_min = nil
+        @scale_max = nil
+      end
+
+      def record(position:, opacity:, scale:)
+        @count += 1
+        record_bounds(position)
+        @opacity_min = [@opacity_min || opacity, opacity].min
+        @opacity_max = [@opacity_max || opacity, opacity].max
+        scale.each do |value|
+          @scale_min = [@scale_min || value, value].min
+          @scale_max = [@scale_max || value, value].max
+        end
+      end
+
+      def record_invalid
+        @invalid_count += 1
+      end
+
+      def to_statistics
+        Gaussian::Statistics.new(
+          count: @count,
+          bounds: Gaussian::Bounds.new(min: @min, max: @max),
+          opacity_min: @opacity_min,
+          opacity_max: @opacity_max,
+          scale_min: @scale_min,
+          scale_max: @scale_max,
+          invalid_count: @invalid_count
+        )
+      end
+
+      private
+
+      def record_bounds(position)
+        @min ||= position.dup
+        @max ||= position.dup
+        3.times do |axis|
+          @min[axis] = [@min[axis], position[axis]].min
+          @max[axis] = [@max[axis], position[axis]].max
+        end
       end
     end
   end

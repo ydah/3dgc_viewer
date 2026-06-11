@@ -10,7 +10,64 @@ module ThreeDgcViewer
     RADIX_SORT_PASSES = 8
     MAX_RADIX_WORKGROUPS = 256
 
-    GaussianSet = Struct.new(:kind, :items, keyword_init: true)
+    Bounds = Struct.new(:min, :max, keyword_init: true) do
+      def self.empty
+        new(min: nil, max: nil)
+      end
+
+      def empty?
+        min.nil? || max.nil?
+      end
+
+      def center
+        return [0.0, 0.0, 0.0] if empty?
+
+        [
+          (min[0] + max[0]) * 0.5,
+          (min[1] + max[1]) * 0.5,
+          (min[2] + max[2]) * 0.5
+        ]
+      end
+
+      def radius
+        return 1.0 if empty?
+
+        dx = max[0] - min[0]
+        dy = max[1] - min[1]
+        dz = max[2] - min[2]
+        [Math.sqrt((dx * dx) + (dy * dy) + (dz * dz)) * 0.5, 0.01].max
+      end
+    end
+
+    Statistics = Struct.new(
+      :count, :bounds, :opacity_min, :opacity_max,
+      :scale_min, :scale_max, :invalid_count,
+      keyword_init: true
+    ) do
+      def self.empty
+        new(
+          count: 0,
+          bounds: Bounds.empty,
+          opacity_min: nil,
+          opacity_max: nil,
+          scale_min: nil,
+          scale_max: nil,
+          invalid_count: 0
+        )
+      end
+    end
+
+    GaussianSet = Struct.new(:kind, :items, :count, :packed_bytes, :statistics, keyword_init: true) do
+      def initialize(kind:, items: [], count: nil, packed_bytes: nil, statistics: nil)
+        super(
+          kind: kind,
+          items: items || [],
+          count: count || (items || []).length,
+          packed_bytes: packed_bytes,
+          statistics: statistics || Statistics.empty
+        )
+      end
+    end
 
     Gaussian3d = Struct.new(:position, :opacity, :scale, :rotation, :sh, keyword_init: true) do
       def pack
@@ -57,6 +114,8 @@ module ThreeDgcViewer
     module_function
 
     def pack_set(gaussian_set)
+      return gaussian_set.packed_bytes.b if gaussian_set.packed_bytes
+
       gaussian_set.items.map(&:pack).join.b
     end
 
