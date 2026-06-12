@@ -525,6 +525,38 @@ RSpec.describe ThreeDgcViewer::AppState do
     expect { state.handle_drop(path) }.not_to raise_error
   end
 
+  it "releases pending pair overflow readbacks when shutting down" do
+    staging = Class.new do
+      attr_reader :release_count, :unmap_count
+
+      def initialize
+        @release_count = 0
+        @unmap_count = 0
+      end
+
+      def unmap
+        @unmap_count += 1
+      end
+
+      def release
+        @release_count += 1
+      end
+    end.new
+    task = Class.new do
+      def complete?
+        false
+      end
+    end.new
+    state = described_class.new(FakeWindow.new(1280, 720), logger: quiet_logger)
+    state.instance_variable_set(:@pair_overflow_readback, {staging: staging, task: task})
+
+    state.release
+    state.release
+
+    expect(staging.unmap_count).to eq(1)
+    expect(staging.release_count).to eq(1)
+  end
+
   it "includes Linux display environment in null surface errors" do
     previous_display = ENV["DISPLAY"]
     previous_wayland = ENV["WAYLAND_DISPLAY"]

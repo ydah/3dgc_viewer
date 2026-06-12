@@ -313,7 +313,8 @@ module ThreeDgcViewer
       return if @released
 
       @released = true
-      release_completed_pair_overflow_readback
+      release_pair_overflow_readback(@pair_overflow_readback)
+      @pair_overflow_readback = nil
       release_passes
       @shader_loader&.release
       [
@@ -940,23 +941,16 @@ module ThreeDgcViewer
       @pair_overflow_readback = nil
     end
 
-    def release_completed_pair_overflow_readback
-      readback = @pair_overflow_readback
-      return unless readback&.dig(:task)&.complete?
-
-      @pair_overflow_readback = nil
-      readback[:task].value
-      readback[:staging].unmap
-      readback[:staging].release if readback[:staging].respond_to?(:release)
-    rescue StandardError
-      release_pair_overflow_readback(readback)
-    end
-
     def release_pair_overflow_readback(readback)
       return unless readback
 
-      readback[:staging]&.unmap if readback[:staging]&.respond_to?(:unmap)
-      readback[:staging]&.release if readback[:staging]&.respond_to?(:release)
+      staging = readback[:staging]
+      begin
+        staging&.unmap if staging&.respond_to?(:unmap)
+      rescue StandardError
+        nil
+      end
+      staging&.release if staging&.respond_to?(:release)
     rescue StandardError
       nil
     end
