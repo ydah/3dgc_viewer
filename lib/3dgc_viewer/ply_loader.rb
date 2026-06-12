@@ -354,11 +354,19 @@ module ThreeDgcViewer
       expected_total_size = header.header_end + expected_body_size
       return unless @io.respond_to?(:size)
 
-      return unless @io.size < expected_total_size
+      actual_total_size = @io.size
+      actual_body_size = actual_total_size - header.header_end
+      return if actual_total_size == expected_total_size
+
+      if actual_total_size > expected_total_size
+        raise PlyError,
+          "PLY body has trailing bytes: expected #{expected_body_size} body bytes " \
+          "(#{expected_total_size} total), got #{actual_body_size} body bytes (#{actual_total_size} total)"
+      end
 
       raise PlyError,
         "PLY body is too short: expected at least #{expected_body_size} body bytes " \
-        "(#{expected_total_size} total), got #{@io.size - header.header_end} body bytes (#{@io.size} total)"
+        "(#{expected_total_size} total), got #{actual_body_size} body bytes (#{actual_total_size} total)"
     end
 
     def fixed_binary_body_size(header)

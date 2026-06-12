@@ -432,4 +432,12 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect { described_class.parse_bytes(bytes.byteslice(0, bytes.bytesize - 1)) }
       .to raise_error(ThreeDgcViewer::PlyError, /expected at least .* body bytes/)
   end
+
+  it "rejects trailing bytes after fixed-size binary bodies" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    bytes = build_ply(properties, [Array.new(properties.length, 0.0)]) + "\0".b
+
+    expect { described_class.parse_bytes(bytes) }
+      .to raise_error(ThreeDgcViewer::PlyError, /body has trailing bytes/)
+  end
 end
