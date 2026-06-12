@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
-require_relative "binary_pack"
 require_relative "math3d"
 require_relative "scene"
 
 module ThreeDgcViewer
   class SceneUniform
+    PACK_TEMPLATE = "e32e3L<L<2e2e2eL<e4e2L<2e4".freeze
+
     attr_reader :view, :proj, :view_pos, :gaussian_count, :screen_size, :near_far,
                 :tan_fov, :time, :background_color, :exposure, :gamma,
                 :brightness, :contrast, :opacity_threshold, :scale_multiplier
@@ -56,21 +57,21 @@ module ThreeDgcViewer
     end
 
     def pack
-      BinaryPack.concat(
-        BinaryPack.f32(@view),
-        BinaryPack.f32(@proj),
-        BinaryPack.f32(@view_pos),
-        BinaryPack.u32(@gaussian_count),
-        BinaryPack.u32(@screen_size),
-        BinaryPack.f32(@near_far),
-        BinaryPack.f32(@tan_fov),
-        BinaryPack.f32(@time),
-        BinaryPack.u32(0),
-        BinaryPack.f32(@background_color),
-        BinaryPack.f32(@exposure, @gamma),
-        BinaryPack.u32(0, 0),
-        BinaryPack.f32(@brightness, @contrast, @opacity_threshold, @scale_multiplier)
-      )
+      [
+        *@view,
+        *@proj,
+        *@view_pos,
+        @gaussian_count,
+        *@screen_size,
+        *@near_far,
+        *@tan_fov,
+        @time,
+        0,
+        *@background_color,
+        @exposure, @gamma,
+        0, 0,
+        @brightness, @contrast, @opacity_threshold, @scale_multiplier
+      ].pack(PACK_TEMPLATE).b
     end
 
     private

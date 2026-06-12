@@ -140,8 +140,24 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
     uniform.update_camera(camera)
     uniform.update_gaussian_count(0)
     uniform.update_screen_size(321, 181)
+    expected = described_class.concat(
+      described_class.f32(uniform.view),
+      described_class.f32(uniform.proj),
+      described_class.f32(uniform.view_pos),
+      described_class.u32(uniform.gaussian_count),
+      described_class.u32(uniform.screen_size),
+      described_class.f32(uniform.near_far),
+      described_class.f32(uniform.tan_fov),
+      described_class.f32(uniform.time),
+      described_class.u32(0),
+      described_class.f32(uniform.background_color),
+      described_class.f32(uniform.exposure, uniform.gamma),
+      described_class.u32(0, 0),
+      described_class.f32(uniform.brightness, uniform.contrast, uniform.opacity_threshold, uniform.scale_multiplier)
+    )
 
     expect(uniform.pack.bytesize).to eq(224)
+    expect(uniform.pack).to eq(expected)
     expect(uniform.screen_size).to eq([321, 181])
     expect(uniform.background_color).to eq([0.1, 0.2, 0.3, 1.0])
     expect(uniform.exposure).to eq(1.5)
