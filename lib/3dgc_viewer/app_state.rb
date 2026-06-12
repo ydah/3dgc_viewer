@@ -157,8 +157,19 @@ module ThreeDgcViewer
       paths = Array(paths).compact
       return @logger.warn("drop ignored: no files") if paths.empty?
 
-      @logger.warn("multiple files dropped; loading first and ignoring #{paths.length - 1}") if paths.length > 1
-      handle_drop(paths.first, max_pairs: max_pairs)
+      if paths.length == 1
+        handle_drop(paths.first, max_pairs: max_pairs)
+      else
+        handle_multiple_drops(paths, max_pairs: max_pairs)
+      end
+    end
+
+    def handle_multiple_drops(paths, max_pairs: nil)
+      @logger.warn("multiple files dropped; loading first valid file and ignoring the rest")
+      paths.each do |path|
+        return true if handle_drop(path, max_pairs: max_pairs)
+      end
+      false
     end
 
     def handle_drop(path, max_pairs: nil)
@@ -182,7 +193,7 @@ module ThreeDgcViewer
       end
       true
     rescue PlyError, SystemCallError => e
-      @logger.error("PLY load failed: #{e.message}")
+      @logger.error("PLY load failed for #{path}: #{e.message}")
       false
     end
 

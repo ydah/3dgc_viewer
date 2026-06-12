@@ -425,6 +425,27 @@ RSpec.describe ThreeDgcViewer::AppState do
     second&.unlink
   end
 
+  it "loads the first valid file when multiple dropped files include failures" do
+    invalid = Tempfile.new(["invalid", ".ply"])
+    invalid.write("not a ply")
+    invalid.close
+    valid = build_ply_file(".ply")
+    logger, output = string_logger
+    window = FakeWindow.new(1280, 720)
+    state = described_class.new(window, logger: logger)
+
+    result = state.handle_drops([invalid.path, valid.path])
+
+    expect(result).to eq(true)
+    expect(state.recent_files.first).to eq(File.expand_path(valid.path))
+    expect(window.title).to include(File.basename(valid.path))
+    expect(output.string).to include("multiple files dropped")
+    expect(output.string).to include("PLY load failed for #{invalid.path}")
+  ensure
+    invalid&.unlink
+    valid&.unlink
+  end
+
   it "persists recent files after a successful load" do
     file = build_ply_file(".ply")
     history = Tempfile.new(["recent", ".json"])
