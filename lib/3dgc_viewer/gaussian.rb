@@ -10,6 +10,8 @@ module ThreeDgcViewer
     RADIX_SORT_PASSES = 8
     MAX_RADIX_WORKGROUPS = 256
     PACK_BUFFER_PREALLOC_LIMIT_BYTES = 64 * 1024 * 1024
+    PACK_3D_TEMPLATE = "e4e3L<e4e#{SH_COUNT}".freeze
+    PACK_4D_TEMPLATE = "e4e3L<e4e3L<e3L<e3L<e4e2L<2e3L<".freeze
 
     Bounds = Struct.new(:min, :max, keyword_init: true) do
       def self.empty
@@ -106,34 +108,27 @@ module ThreeDgcViewer
       sh_values = Array(sh || []).first(SH_COUNT)
       sh_values += Array.new(SH_COUNT - sh_values.length, 0.0)
 
-      BinaryPack.concat(
-        BinaryPack.f32(position[0], position[1], position[2], opacity),
-        BinaryPack.f32(scale[0], scale[1], scale[2]),
-        BinaryPack.u32(0),
-        BinaryPack.f32(rotation[0], rotation[1], rotation[2], rotation[3]),
-        BinaryPack.f32(sh_values)
-      )
+      [
+        position[0], position[1], position[2], opacity,
+        scale[0], scale[1], scale[2], 0,
+        rotation[0], rotation[1], rotation[2], rotation[3],
+        *sh_values
+      ].pack(PACK_3D_TEMPLATE).b
     end
 
     def pack_4d(position:, opacity:, scale:, rotation:, motion_0:, motion_1:, motion_2:,
                 omega:, trbf_center:, trbf_scale:, base_color:)
-      BinaryPack.concat(
-        BinaryPack.f32(position[0], position[1], position[2], opacity),
-        BinaryPack.f32(scale[0], scale[1], scale[2]),
-        BinaryPack.u32(0),
-        BinaryPack.f32(rotation[0], rotation[1], rotation[2], rotation[3]),
-        BinaryPack.f32(motion_0[0], motion_0[1], motion_0[2]),
-        BinaryPack.u32(0),
-        BinaryPack.f32(motion_1[0], motion_1[1], motion_1[2]),
-        BinaryPack.u32(0),
-        BinaryPack.f32(motion_2[0], motion_2[1], motion_2[2]),
-        BinaryPack.u32(0),
-        BinaryPack.f32(omega[0], omega[1], omega[2], omega[3]),
-        BinaryPack.f32(trbf_center, trbf_scale),
-        BinaryPack.u32(0, 0),
-        BinaryPack.f32(base_color[0], base_color[1], base_color[2]),
-        BinaryPack.u32(0)
-      )
+      [
+        position[0], position[1], position[2], opacity,
+        scale[0], scale[1], scale[2], 0,
+        rotation[0], rotation[1], rotation[2], rotation[3],
+        motion_0[0], motion_0[1], motion_0[2], 0,
+        motion_1[0], motion_1[1], motion_1[2], 0,
+        motion_2[0], motion_2[1], motion_2[2], 0,
+        omega[0], omega[1], omega[2], omega[3],
+        trbf_center, trbf_scale, 0, 0,
+        base_color[0], base_color[1], base_color[2], 0
+      ].pack(PACK_4D_TEMPLATE).b
     end
 
     def pack_set(gaussian_set)

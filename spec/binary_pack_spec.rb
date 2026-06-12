@@ -31,8 +31,16 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
       rotation: gaussian.rotation,
       sh: gaussian.sh
     )
+    expected = described_class.concat(
+      described_class.f32(1.0, 2.0, 3.0, 0.5),
+      described_class.f32(0.1, 0.2, 0.3),
+      described_class.u32(0),
+      described_class.f32(1.0, 0.0, 0.0, 0.0),
+      described_class.f32(Array.new(48, 0.25))
+    )
 
     expect(direct).to eq(gaussian.pack)
+    expect(direct).to eq(expected)
   end
 
   it "packs Gaussian sets without requiring retained objects when bytes are provided" do
@@ -96,8 +104,26 @@ RSpec.describe ThreeDgcViewer::BinaryPack do
       trbf_scale: gaussian.trbf_scale,
       base_color: gaussian.base_color
     )
+    expected = described_class.concat(
+      described_class.f32(1.0, 2.0, 3.0, 0.5),
+      described_class.f32(0.1, 0.2, 0.3),
+      described_class.u32(0),
+      described_class.f32(1.0, 0.0, 0.0, 0.0),
+      described_class.f32(0.0, 0.1, 0.2),
+      described_class.u32(0),
+      described_class.f32(0.3, 0.4, 0.5),
+      described_class.u32(0),
+      described_class.f32(0.6, 0.7, 0.8),
+      described_class.u32(0),
+      described_class.f32(0.0, 0.0, 0.0, 1.0),
+      described_class.f32(0.2, 1.0),
+      described_class.u32(0, 0),
+      described_class.f32(0.1, 0.2, 0.3),
+      described_class.u32(0)
+    )
 
     expect(direct).to eq(gaussian.pack)
+    expect(direct).to eq(expected)
   end
 
   it "packs SceneUniform to 224 bytes" do
