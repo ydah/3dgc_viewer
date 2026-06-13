@@ -381,16 +381,21 @@ module ThreeDgcViewer
     end
 
     def classify(header)
-      has_3dgs_core = REQUIRED_3DGS_FIELDS.all? { |name| property_for(header, name) }
-      return :unknown unless has_3dgs_core
+      missing_core = missing_properties(header, REQUIRED_3DGS_FIELDS)
+      if missing_core.any?
+        present_core_count = REQUIRED_3DGS_FIELDS.length - missing_core.length
+        return :unknown if present_core_count.zero?
+
+        raise_missing_properties(missing_core)
+      end
 
       has_any_stg = REQUIRED_STG_LITE_FIELDS.any? { |name| property_for(header, name) }
-      has_all_stg = REQUIRED_STG_LITE_FIELDS.all? { |name| property_for(header, name) }
+      missing_stg = missing_properties(header, REQUIRED_STG_LITE_FIELDS)
 
-      if has_all_stg
+      if missing_stg.empty?
         :gaussian4d
       elsif has_any_stg
-        :unknown
+        raise PlyError, "incomplete STG-Lite PLY payload; missing required PLY vertex properties: #{missing_stg.join(", ")}"
       else
         :gaussian3d
       end
@@ -546,9 +551,17 @@ module ThreeDgcViewer
     end
 
     def require_properties(header, names)
-      missing = names.reject { |name| property_for(header, name) }
+      missing = missing_properties(header, names)
       return if missing.empty?
 
+      raise_missing_properties(missing)
+    end
+
+    def missing_properties(header, names)
+      names.reject { |name| property_for(header, name) }
+    end
+
+    def raise_missing_properties(missing)
       raise PlyError, "missing required PLY vertex properties: #{missing.join(", ")}"
     end
 

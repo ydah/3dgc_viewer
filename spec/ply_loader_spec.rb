@@ -284,7 +284,7 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     properties = [["float", "x"]]
 
     expect { described_class.parse_bytes(build_ply(properties, [[1.0]])) }
-      .to raise_error(ThreeDgcViewer::PlyError, /unsupported|missing/)
+      .to raise_error(ThreeDgcViewer::PlyError, /missing required PLY vertex properties: y, z, opacity/)
   end
 
   it "rejects incomplete STG-Lite properties" do
@@ -292,7 +292,7 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     row = Array.new(properties.length, 0.0)
 
     expect { described_class.parse_bytes(build_ply(properties, [row])) }
-      .to raise_error(ThreeDgcViewer::PlyError, /unsupported|incomplete/)
+      .to raise_error(ThreeDgcViewer::PlyError, /incomplete STG-Lite.*motion_1, motion_2/)
   end
 
   it "reads all supported scalar types as numeric values" do
