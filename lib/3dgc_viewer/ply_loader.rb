@@ -97,6 +97,8 @@ module ThreeDgcViewer
           new(file, retain_items: retain_items, sh_degree: sh_degree, max_vertex_count: max_vertex_count).parse
         end
       end
+    rescue Zlib::Error => e
+      raise PlyError, "invalid gzip-compressed PLY: #{e.message}"
     end
 
     def self.parse_bytes(bytes, retain_items: true, sh_degree: MAX_SH_DEGREE,
@@ -116,6 +118,8 @@ module ThreeDgcViewer
       else
         new(io, retain_items: retain_items, sh_degree: sh_degree, max_vertex_count: max_vertex_count).parse
       end
+    rescue Zlib::Error => e
+      raise PlyError, "invalid gzip-compressed PLY: #{e.message}"
     end
 
     def self.gzip_io?(io)

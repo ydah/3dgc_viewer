@@ -99,6 +99,21 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     file&.unlink
   end
 
+  it "wraps invalid gzip-compressed PLY input as PlyError" do
+    bytes = "\x1F\x8Bnot a valid gzip stream".b
+    file = Tempfile.new(["scene", ".ply.gz"])
+    file.binmode
+    file.write(bytes)
+    file.close
+
+    expect { described_class.parse_bytes(bytes) }
+      .to raise_error(ThreeDgcViewer::PlyError, /invalid gzip-compressed PLY/)
+    expect { described_class.parse_file(file.path) }
+      .to raise_error(ThreeDgcViewer::PlyError, /invalid gzip-compressed PLY/)
+  ensure
+    file&.unlink
+  end
+
   it "can parse without retaining Gaussian objects" do
     properties = REQUIRED_3D.map { |name| ["float", name] }
     rows = [
