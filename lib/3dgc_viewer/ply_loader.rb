@@ -403,9 +403,10 @@ module ThreeDgcViewer
       items = @retain_items ? [] : nil
       packed = Gaussian.packed_buffer(:gaussian3d, header.vertex_count)
       statistics = StatisticsBuilder.new
+      row_unpack_directive = vertex_row_unpack_directive(header)
 
       header.vertex_count.times do |index|
-        row = read_row(header, index)
+        row = read_row(header, index, row_unpack_directive)
         sh = [
           read(header, row, "f_dc_0", vertex_index: index),
           read(header, row, "f_dc_1", vertex_index: index),
@@ -468,9 +469,10 @@ module ThreeDgcViewer
       items = @retain_items ? [] : nil
       packed = Gaussian.packed_buffer(:gaussian4d, header.vertex_count)
       statistics = StatisticsBuilder.new
+      row_unpack_directive = vertex_row_unpack_directive(header)
 
       header.vertex_count.times do |index|
-        row = read_row(header, index)
+        row = read_row(header, index, row_unpack_directive)
         motion = 9.times.map { |i| read(header, row, "motion_#{i}", vertex_index: index) }
         position = [
           read(header, row, "x", vertex_index: index),
@@ -614,6 +616,13 @@ module ThreeDgcViewer
         return normalize_alias_value(name, property, unpack_ascii_scalar(row[property.index], property.type, name, vertex_index).to_f)
       end
 
+      if row.is_a?(Array)
+        value = row[property.index]
+        raise PlyError, "PLY body is too short at vertex #{vertex_index}" if value.nil?
+
+        return normalize_alias_value(name, property, value.to_f)
+      end
+
       chunk = row.byteslice(property.offset, property.size)
       raise PlyError, "PLY body is too short at vertex #{vertex_index}" unless chunk&.bytesize == property.size
 
@@ -639,13 +648,21 @@ module ThreeDgcViewer
       value / 255.0
     end
 
-    def read_row(header, index)
+    def read_row(header, index, unpack_directive = nil)
       return read_ascii_row(header, index) if header.format == :ascii
 
       row = @io.read(header.vertex_stride)
-      return row if row&.bytesize == header.vertex_stride
+      return unpack_directive ? row.unpack(unpack_directive) : row if row&.bytesize == header.vertex_stride
 
       raise PlyError, "PLY body is too short at vertex #{index}"
+    end
+
+    def vertex_row_unpack_directive(header)
+      return nil if header.format == :ascii
+      return nil unless header.properties.all? { |property| property.type == :f }
+      return nil unless header.vertex_stride == header.properties.length * 4
+
+      header.format == :binary_big_endian ? "g*" : "e*"
     end
 
     def read_ascii_row(header, index)

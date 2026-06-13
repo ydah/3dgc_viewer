@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "stringio"
 require "tempfile"
 require "zlib"
 
@@ -264,6 +265,19 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(set.kind).to eq(:gaussian3d)
     expect(set.items.first.position).to eq([1.0, 2.0, 3.0])
     expect(set.items.first.sh[2]).to be_within(1e-6).of(0.9)
+  end
+
+  it "unpacks all-float binary vertex rows in one pass" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]
+    loader = described_class.new(StringIO.new(build_ply(properties, [row])))
+    header = loader.send(:parse_header)
+    directive = loader.send(:vertex_row_unpack_directive, header)
+
+    unpacked = loader.send(:read_row, header, 0, directive)
+
+    expect(directive).to eq("e*")
+    expect(unpacked).to match(row.map { |value| be_within(1e-6).of(value) })
   end
 
   it "detects missing required fields" do
