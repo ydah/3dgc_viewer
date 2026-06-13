@@ -194,6 +194,8 @@ RSpec.describe ThreeDgcViewer::App do
   it "rejects invalid dimensions" do
     expect { described_class.parse_options(%w[--width 0]) }
       .to raise_error(OptionParser::InvalidArgument, /width/)
+    expect { described_class.parse_options(%w[--width 32768 --height 32768 --render-scale 4]) }
+      .to raise_error(OptionParser::InvalidArgument, /render-width.*32768/)
   end
 
   it "rejects invalid camera options" do

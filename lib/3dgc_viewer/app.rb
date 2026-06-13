@@ -269,7 +269,11 @@ module ThreeDgcViewer
       validate_frame_sequence_options(options)
       validate_recent_files_options(options)
       validate_batch_options(options)
-      apply_render_scale(options, explicit_render_size: explicit_render_size) if options.render_scale
+      if options.render_scale
+        apply_render_scale(options, explicit_render_size: explicit_render_size)
+        validate_dimension("--render-width", options.render_width, MAX_RENDER_DIMENSION)
+        validate_dimension("--render-height", options.render_height, MAX_RENDER_DIMENSION)
+      end
     end
 
     def self.apply_camera_spec(options, value)
