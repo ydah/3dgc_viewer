@@ -17,6 +17,7 @@ module ThreeDgcViewer
     MAX_PROPERTY_NAME_BYTES = 256
     MAX_LIST_VALUES = 1_000_000
     MAX_SH_DEGREE = 3
+    ROTATION_EPSILON = 1.0e-12
     SH_REST_COEFFICIENTS_PER_CHANNEL = 15
 
     REQUIRED_3DGS_FIELDS = %w[
@@ -447,7 +448,7 @@ module ThreeDgcViewer
           read(header, row, "rot_3", vertex_index: index)
         ]
 
-        unless gaussian_finite?(position, [opacity], scale, rotation, sh)
+        unless gaussian_valid?(rotation, position, [opacity], scale, sh)
           statistics.record_invalid
           next
         end
@@ -509,7 +510,7 @@ module ThreeDgcViewer
           read(header, row, "f_dc_2", vertex_index: index)
         ]
 
-        unless gaussian_finite?(position, [opacity], scale, rotation, motion, omega, [trbf_center, trbf_scale], base_color)
+        unless gaussian_valid?(rotation, position, [opacity], scale, motion, omega, [trbf_center, trbf_scale], base_color)
           statistics.record_invalid
           next
         end
@@ -696,6 +697,14 @@ module ThreeDgcViewer
 
     def gaussian_finite?(*groups)
       groups.flatten.all? { |value| value.to_f.finite? }
+    end
+
+    def gaussian_valid?(rotation, *groups)
+      gaussian_finite?(rotation, *groups) && rotation_length_squared(rotation) > ROTATION_EPSILON
+    end
+
+    def rotation_length_squared(rotation)
+      rotation.sum { |value| value.to_f * value.to_f }
     end
 
     def gaussian_set(kind, items, packed, statistics, header)

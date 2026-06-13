@@ -163,6 +163,20 @@ RSpec.describe ThreeDgcViewer::PlyLoader do
     expect(set.statistics.invalid_count).to eq(1)
   end
 
+  it "skips Gaussian rows with zero-length rotations" do
+    properties = REQUIRED_3D.map { |name| ["float", name] }
+    rows = [
+      [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9],
+      [4.0, 5.0, 6.0, 0.4, 0.1, 0.2, 0.3, 0.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]
+    ]
+
+    set = described_class.parse_bytes(build_ply(properties, rows))
+
+    expect(set.count).to eq(1)
+    expect(set.items.first.position).to eq([1.0, 2.0, 3.0])
+    expect(set.statistics.invalid_count).to eq(1)
+  end
+
   it "parses ASCII PLY" do
     properties = REQUIRED_3D.map { |name| ["float", name] }
     row = [1.0, 2.0, 3.0, 0.4, 0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.7, 0.8, 0.9]
