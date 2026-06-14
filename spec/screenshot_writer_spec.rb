@@ -30,38 +30,47 @@ RSpec.describe ThreeDgcViewer::ScreenshotWriter do
 
   it "writes PPM files" do
     file = Tempfile.new(["screenshot", ".ppm"])
+    path = file.path
+    file.close
+    file.unlink
     rgba = [1, 2, 3, 255].pack("C*")
 
-    described_class.write_ppm(path: file.path, width: 1, height: 1, rgba_bytes: rgba)
+    described_class.write_ppm(path: path, width: 1, height: 1, rgba_bytes: rgba)
 
-    expect(File.binread(file.path)).to eq("P6\n1 1\n255\n".b + [1, 2, 3].pack("C*"))
-    expect(File).not_to exist("#{file.path}.tmp")
+    expect(File.binread(path)).to eq("P6\n1 1\n255\n".b + [1, 2, 3].pack("C*"))
+    expect(File).not_to exist("#{path}.tmp")
   ensure
-    file&.unlink
+    File.delete(path) if path && File.exist?(path)
   end
 
   it "does not overwrite existing sibling tmp files" do
     file = Tempfile.new(["screenshot", ".ppm"])
-    sidecar_path = "#{file.path}.tmp"
+    path = file.path
+    file.close
+    file.unlink
+    sidecar_path = "#{path}.tmp"
     File.binwrite(sidecar_path, "keep".b)
     rgba = [1, 2, 3, 255].pack("C*")
 
-    described_class.write_ppm(path: file.path, width: 1, height: 1, rgba_bytes: rgba)
+    described_class.write_ppm(path: path, width: 1, height: 1, rgba_bytes: rgba)
 
     expect(File.binread(sidecar_path)).to eq("keep".b)
   ensure
-    file&.unlink
+    File.delete(path) if path && File.exist?(path)
     File.delete(sidecar_path) if sidecar_path && File.exist?(sidecar_path)
   end
 
   it "writes PAM files based on extension" do
     file = Tempfile.new(["screenshot", ".pam"])
+    path = file.path
+    file.close
+    file.unlink
     rgba = [1, 2, 3, 4].pack("C*")
 
-    described_class.write(path: file.path, width: 1, height: 1, rgba_bytes: rgba)
+    described_class.write(path: path, width: 1, height: 1, rgba_bytes: rgba)
 
-    expect(File.binread(file.path)).to end_with(rgba)
+    expect(File.binread(path)).to end_with(rgba)
   ensure
-    file&.unlink
+    File.delete(path) if path && File.exist?(path)
   end
 end
